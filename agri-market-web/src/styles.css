@@ -1,0 +1,53 @@
+/* 全局样式与 Element Plus 主题覆盖（乡村助农 · 绿色品牌） */
+:root {
+  --el-color-primary: #2e7d32;
+  --el-color-primary-light-3: #5a9e5e;
+  --el-color-primary-light-5: #8fbe92;
+  --el-color-primary-light-7: #c4ddc6;
+  --el-color-primary-light-8: #d7e9d8;
+  --el-color-primary-light-9: #eef5ee;
+  --el-color-primary-dark-2: #256029;
+  --el-border-radius-base: 8px;
+  --brand: #2e7d32;
+  --bg-page: #f4f7f4;
+}
+
+html, body, #app {
+  height: 100%;
+  margin: 0;
+  font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #1f2d3d;
+  background: var(--bg-page);
+}
+
+/* 卡片 */
+.el-card {
+  border-radius: 12px;
+  border: 1px solid #eef0ee;
+}
+.el-card__header {
+  font-weight: 600;
+  color: #2b3a2b;
+}
+
+/* 表格 */
+.el-table th.el-table__cell {
+  background: #f6f9f6;
+  color: #4a5a4a;
+  font-weight: 600;
+}
+
+/* 按钮圆角 */
+.el-button { border-radius: 8px; }
+
+/* 页面顶部标题 */
+.page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #c7d2c7; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
