@@ -1,11 +1,15 @@
 package com.cmh.agrimarket.service;
 
+import com.cmh.agrimarket.common.AuthException;
+import com.cmh.agrimarket.common.CurrentUser;
 import com.cmh.agrimarket.dto.CreateOrderRequest;
 import com.cmh.agrimarket.dto.OrderItemRequest;
 import com.cmh.agrimarket.entity.OrderEntity;
 import com.cmh.agrimarket.entity.OrderItem;
 import com.cmh.agrimarket.entity.OrderStatus;
 import com.cmh.agrimarket.entity.Product;
+import com.cmh.agrimarket.entity.Role;
+import com.cmh.agrimarket.repository.OrderItemRepository;
 import com.cmh.agrimarket.repository.OrderRepository;
 import com.cmh.agrimarket.repository.ProductRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -24,18 +28,37 @@ import java.util.concurrent.ThreadLocalRandom;
 public class OrderService {
     private final OrderRepository orderRepo;
     private final ProductRepository productRepo;
+    private final OrderItemRepository orderItemRepo;
 
-    public List<OrderEntity> list() {
-        return orderRepo.findAllWithItems();
+    public List<OrderEntity> list(CurrentUser current) {
+        if (current.role() == Role.ADMIN) {
+            return orderRepo.findAllWithItems();
+        }
+        if (current.role() == Role.CONSUMER) {
+            return orderRepo.findByCustomerId(current.id());
+        }
+        // FARMER：仅查看包含本人产品的订单
+        List<Long> myProductIds = productRepo.findByFarmerId(current.id()).stream()
+                .map(Product::getId).toList();
+        if (myProductIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> orderIds = orderItemRepo.findDistinctOrderIdByProductIdIn(myProductIds);
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+        return orderRepo.findByIdIn(orderIds);
     }
 
-    public OrderEntity get(Long id) {
-        return orderRepo.findWithItemsById(id)
+    public OrderEntity get(Long id, CurrentUser current) {
+        OrderEntity order = orderRepo.findWithItemsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("订单不存在: " + id));
+        checkAccess(order, current);
+        return order;
     }
 
     @Transactional
-    public OrderEntity create(CreateOrderRequest req) {
+    public OrderEntity create(CreateOrderRequest req, CurrentUser current) {
         OrderEntity order = new OrderEntity();
         order.setOrderNo(generateOrderNo());
         order.setBuyerName(req.buyerName());
@@ -43,6 +66,9 @@ public class OrderService {
         order.setBuyerAddress(req.buyerAddress());
         order.setRemark(req.remark());
         order.setStatus(OrderStatus.PENDING);
+        if (current != null) {
+            order.setCustomerId(current.id());
+        }
 
         BigDecimal total = BigDecimal.ZERO;
         for (OrderItemRequest itemReq : req.items()) {
@@ -75,8 +101,8 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderEntity changeStatus(Long id, OrderStatus newStatus) {
-        OrderEntity order = get(id);
+    public OrderEntity changeStatus(Long id, OrderStatus newStatus, CurrentUser current) {
+        OrderEntity order = get(id, current);
         OrderStatus old = order.getStatus();
         if (old == OrderStatus.CANCELLED) {
             throw new IllegalArgumentException("已取消的订单不能变更状态");
@@ -92,6 +118,23 @@ public class OrderService {
         }
         order.setStatus(newStatus);
         return orderRepo.save(order);
+    }
+
+    /** 访问校验：消费者仅看本人订单，农户仅看含本人产品的订单。 */
+    private void checkAccess(OrderEntity order, CurrentUser current) {
+        if (current == null) {
+            throw new AuthException(401, "未登录或登录已过期");
+        }
+        if (current.role() == Role.CONSUMER && !current.id().equals(order.getCustomerId())) {
+            throw new AuthException(403, "无权查看该订单");
+        }
+        if (current.role() == Role.FARMER) {
+            boolean owns = order.getItems().stream()
+                    .anyMatch(it -> it.getProduct() != null && current.id().equals(it.getProduct().getFarmerId()));
+            if (!owns) {
+                throw new AuthException(403, "该订单不包含您的农产品");
+            }
+        }
     }
 
     private String generateOrderNo() {

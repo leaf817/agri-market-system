@@ -57,6 +57,10 @@ public class Product {
     @Column(nullable = false)
     private Integer status = 1;
 
+    /** 所属农户用户 id（admin 创建的公共产品为 null，农户仅管理 farmer_id 等于本人的产品） */
+    @Column(name = "farmer_id")
+    private Long farmerId;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createTime;

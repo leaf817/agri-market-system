@@ -1,9 +1,12 @@
 package com.cmh.agrimarket.service;
 
+import com.cmh.agrimarket.common.AuthException;
+import com.cmh.agrimarket.common.CurrentUser;
 import com.cmh.agrimarket.dto.ProductRequest;
 import com.cmh.agrimarket.entity.Category;
 import com.cmh.agrimarket.entity.Origin;
 import com.cmh.agrimarket.entity.Product;
+import com.cmh.agrimarket.entity.Role;
 import com.cmh.agrimarket.repository.CategoryRepository;
 import com.cmh.agrimarket.repository.OriginRepository;
 import com.cmh.agrimarket.repository.ProductRepository;
@@ -23,8 +26,11 @@ public class ProductService {
     private final CategoryRepository categoryRepo;
     private final OriginRepository originRepo;
 
-    public List<Product> list(Long categoryId, Integer status, String keyword) {
+    public List<Product> list(Long categoryId, Integer status, String keyword, Long farmerId) {
         Stream<Product> stream = repo.findAll(Sort.by(Sort.Direction.DESC, "createTime")).stream();
+        if (farmerId != null) {
+            stream = stream.filter(p -> farmerId.equals(p.getFarmerId()));
+        }
         if (categoryId != null) {
             stream = stream.filter(p -> p.getCategory() != null && categoryId.equals(p.getCategory().getId()));
         }
@@ -43,33 +49,51 @@ public class ProductService {
     }
 
     @Transactional
-    public Product create(ProductRequest req) {
+    public Product create(ProductRequest req, CurrentUser current) {
         Product p = new Product();
         apply(p, req);
         p.setSales(0);
+        // 农户上架的产品归属本人；管理员创建的为公共产品（farmerId=null）
+        if (current != null && current.role() == Role.FARMER) {
+            p.setFarmerId(current.id());
+        }
         return repo.save(p);
     }
 
     @Transactional
-    public Product update(Long id, ProductRequest req) {
+    public Product update(Long id, ProductRequest req, CurrentUser current) {
         Product p = get(id);
+        checkOwner(p, current);
         apply(p, req);
         return repo.save(p);
     }
 
     @Transactional
-    public Product changeStatus(Long id, Integer status) {
+    public Product changeStatus(Long id, Integer status, CurrentUser current) {
         Product p = get(id);
+        checkOwner(p, current);
         p.setStatus(status);
         return repo.save(p);
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!repo.existsById(id)) {
-            throw new EntityNotFoundException("商品不存在: " + id);
-        }
+    public void delete(Long id, CurrentUser current) {
+        Product p = get(id);
+        checkOwner(p, current);
         repo.deleteById(id);
+    }
+
+    /** 所有权校验：农户只能操作自己的产品；消费者无写权限。 */
+    private void checkOwner(Product p, CurrentUser current) {
+        if (current == null) {
+            throw new AuthException(401, "未登录或登录已过期");
+        }
+        if (current.role() == Role.FARMER && !current.id().equals(p.getFarmerId())) {
+            throw new AuthException(403, "只能管理自己的农产品");
+        }
+        if (current.role() == Role.CONSUMER) {
+            throw new AuthException(403, "消费者无管理权限");
+        }
     }
 
     private void apply(Product p, ProductRequest req) {

@@ -1,15 +1,21 @@
 package com.cmh.agrimarket.common;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * 全局跨域配置：允许前端 Vite 开发服务器（默认 5173）直连后端。
- * 前端已配置 dev proxy（/api -> 8080），此配置作为直连时的双保险。
+ * 全局跨域配置 + 鉴权拦截器注册。
+ * 允许前端 Vite 开发服务器（默认 5173）直连后端；前端 dev proxy 已代理 /api。
+ * 拦截器保护 /api/**，放行登录注册 /api/auth/** 与图片 /uploads/**。
  */
 @Configuration
+@RequiredArgsConstructor
 public class CorsConfig implements WebMvcConfigurer {
+    private final AuthInterceptor authInterceptor;
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
@@ -18,5 +24,12 @@ public class CorsConfig implements WebMvcConfigurer {
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);
+    }
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(authInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/**");
     }
 }

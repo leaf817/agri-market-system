@@ -35,6 +35,10 @@ public class OrderEntity {
     @Column(length = 200)
     private String buyerAddress;
 
+    /** 下单消费者用户 id */
+    @Column(name = "customer_id")
+    private Long customerId;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
