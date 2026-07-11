@@ -29,7 +29,6 @@ agri-market-system/
 │       ├── java/com/cmh/agrimarket/
 │       │   ├── AgriMarketApplication.java
 │       │   ├── common/        # 统一返回、全局异常、跨域
-│       │   ├── config/        # 启动初始化演示数据
 │       │   ├── entity/        # JPA 实体（产品/分类/产地/订单/订单项）
 │       │   ├── dto/           # 请求与统计返回对象
 │       │   ├── repository/    # Spring Data JPA
@@ -43,6 +42,9 @@ agri-market-system/
 │       ├── api/               # axios 封装与接口
 │       ├── router/            # 路由
 │       └── views/             # 产品/分类/产地/订单/统计 五个页面
+├── db/                              # 数据库脚本
+│   ├── schema.sql       # 建库建表（重建结构，会清空数据）
+│   └── seed.sql         # 演示数据（可重复导入）
 └── README.md
 ```
 
@@ -59,9 +61,23 @@ agri-market-system/
 
 打开 `agri-market-server/src/main/resources/application.yml`，把 `spring.datasource.password` 改成你本机 MySQL 的 root 密码。
 
-> 连接 URL 中带 `createDatabaseIfNotExist=true`，启动时若 `agrimarket` 库不存在会自动创建，**无需手动建库**；表由 JPA 自动创建，首次启动还会写入演示数据。
+> 连接 URL 中带 `createDatabaseIfNotExist=true`，启动时若 `agrimarket` 库不存在会自动创建，**无需手动建库**。
 
-**2. 启动后端**（端口 8081）
+**2. 初始化数据库（二选一）**
+
+- **方式 A（推荐，脚本全权管理）**：依次执行建表与导入演示数据
+  ```bash
+  mysql -u root -p < db/schema.sql
+  mysql -u root -p agrimarket < db/seed.sql
+  ```
+- **方式 B（省心）**：先按第 3 步启动一次后端，让 JPA 自动建表；再导入演示数据
+  ```bash
+  mysql -u root -p agrimarket < db/seed.sql
+  ```
+
+> `db/seed.sql` 可重复执行：每次会先清空业务表再插入，便于重置演示数据。订单未预置，可在前端「模拟下单」体验完整流程。
+
+**3. 启动后端**（端口 8081）
 
 ```bash
 cd agri-market-server
@@ -70,7 +86,7 @@ mvn spring-boot:run
 
 > 或在 IDEA 中导入 `agri-market-server` 目录为 Maven 项目，运行 `AgriMarketApplication`。
 
-**3. 启动前端**（端口 5173）
+**4. 启动前端**（端口 5173）
 
 ```bash
 cd agri-market-web
@@ -78,7 +94,7 @@ npm install      # 首次执行
 npm run dev
 ```
 
-**4. 访问**：浏览器打开 <http://localhost:5173>
+**5. 访问**：浏览器打开 <http://localhost:5173>
 
 ## 🔌 主要接口（前缀 `/api`）
 
@@ -100,11 +116,14 @@ npm run dev
 
 - **Lombok 报错**：IDEA 需安装 Lombok 插件并开启 *Settings → Build → Compiler → Annotation Processors → Enable*。
 - **连不上 MySQL**：确认 MySQL 服务已启动，并核对 `application.yml` 中的用户名/密码。
+- **页面没有数据**：确认已执行 `db/seed.sql` 导入演示数据（见快速开始第 2 步）。
+- **重置演示数据**：`mysql -u root -p agrimarket < db/seed.sql`（先清空再插入，可重复执行）。
 - **端口被占用**：后端默认 8081、前端默认 5173，可在 `application.yml` / `vite.config.js` 修改。
-- **清空演示数据**：在 MySQL 中执行 `DROP DATABASE agrimarket;` 后重启后端即可重新初始化。
 
 ## 🌱 后续可扩展
 
 用户登录与权限（管理员/农户/消费者）、图片上传、支付对接、物流、评价与收藏、数据大屏（ECharts）等。
 
+## 作者
 
+- 陈明欢（课程实训）
