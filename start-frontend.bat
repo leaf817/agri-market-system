@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-cd /d %~dp0frontend
+cd /d %~dp0agri-market-web
 if not exist node_modules (
   echo 首次运行，正在安装前端依赖...
   call npm install

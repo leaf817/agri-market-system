@@ -23,7 +23,7 @@
 
 ```
 agri-market-system/
-├── backend/                         # Spring Boot 后端
+├── agri-market-server/              # Spring Boot 后端
 │   ├── pom.xml
 │   └── src/main/
 │       ├── java/com/cmh/agrimarket/
@@ -36,7 +36,7 @@ agri-market-system/
 │       │   ├── service/       # 业务逻辑
 │       │   └── controller/    # REST 接口（/api/**）
 │       └── resources/application.yml
-├── frontend/                        # Vue 3 前端
+├── agri-market-web/                 # Vue 3 前端
 │   ├── package.json、vite.config.js、index.html
 │   └── src/
 │       ├── main.js、App.vue
@@ -59,23 +59,23 @@ agri-market-system/
 
 **1. 配置数据库密码**
 
-打开 `backend/src/main/resources/application.yml`，把 `spring.datasource.password` 改成你本机 MySQL 的 root 密码。
+打开 `agri-market-server/src/main/resources/application.yml`，把 `spring.datasource.password` 改成你本机 MySQL 的 root 密码。
 
 > 连接 URL 中带 `createDatabaseIfNotExist=true`，启动时若 `agrimarket` 库不存在会自动创建，**无需手动建库**；表由 JPA 自动创建，首次启动还会写入演示数据。
 
-**2. 启动后端**（端口 8080）
+**2. 启动后端**（端口 8081）
 
 ```bash
-cd backend
+cd agri-market-server
 mvn spring-boot:run
 ```
 
-> 或在 IDEA 中导入 `backend` 目录为 Maven 项目，运行 `AgriMarketApplication`。
+> 或在 IDEA 中导入 `agri-market-server` 目录为 Maven 项目，运行 `AgriMarketApplication`。
 
 **3. 启动前端**（端口 5173）
 
 ```bash
-cd frontend
+cd agri-market-web
 npm install      # 首次执行
 npm run dev
 ```
@@ -104,13 +104,11 @@ npm run dev
 
 - **Lombok 报错**：IDEA 需安装 Lombok 插件并开启 *Settings → Build → Compiler → Annotation Processors → Enable*。
 - **连不上 MySQL**：确认 MySQL 服务已启动，并核对 `application.yml` 中的用户名/密码。
-- **端口被占用**：后端默认 8080、前端默认 5173，可在 `application.yml` / `vite.config.js` 修改。
+- **端口被占用**：后端默认 8081、前端默认 5173，可在 `application.yml` / `vite.config.js` 修改。
 - **清空演示数据**：在 MySQL 中执行 `DROP DATABASE agrimarket;` 后重启后端即可重新初始化。
 
 ## 🌱 后续可扩展
 
 用户登录与权限（管理员/农户/消费者）、图片上传、支付对接、物流、评价与收藏、数据大屏（ECharts）等。
 
-## 作者
 
-- 陈明欢（课程实训）
