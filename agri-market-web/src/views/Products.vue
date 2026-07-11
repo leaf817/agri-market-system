@@ -9,7 +9,7 @@
               <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="状态">
+          <el-form-item v-if="isManager" label="状态">
             <el-select v-model="filters.status" placeholder="全部状态" clearable style="width: 130px" @change="loadProducts">
               <el-option label="上架" :value="1" />
               <el-option label="下架" :value="0" />
@@ -23,13 +23,13 @@
             <el-button :icon="Refresh" @click="resetFilter">重置</el-button>
           </el-form-item>
         </el-form>
-        <el-button type="primary" :icon="Plus" @click="openCreate">上架农产品</el-button>
+        <el-button v-if="isManager" type="primary" :icon="Plus" @click="openCreate">上架农产品</el-button>
       </div>
     </el-card>
 
-    <!-- 产品卡片网格 -->
+    <!-- 产品卡片网格（消费者只读展示；管理端额外有操作按钮） -->
     <div v-loading="loading" class="grid-wrap">
-      <el-empty v-if="!loading && products.length === 0" description="暂无农产品，点击右上角上架" />
+      <el-empty v-if="!loading && products.length === 0" :description="isManager ? '暂无农产品，点击右上角上架' : '暂无在售农产品'" />
       <el-row :gutter="16">
         <el-col v-for="p in products" :key="p.id" :xs="24" :sm="12" :md="8" :lg="6" class="card-col">
           <el-card shadow="hover" class="product-card" :body-style="{ padding: 0 }">
@@ -44,7 +44,7 @@
                 class="cover"
               />
               <div v-else class="cover-empty">🌾</div>
-              <el-tag :type="p.status === 1 ? 'success' : 'info'" size="small" class="status-tag">
+              <el-tag v-if="isManager" :type="p.status === 1 ? 'success' : 'info'" size="small" class="status-tag">
                 {{ p.status === 1 ? '上架' : '下架' }}
               </el-tag>
             </div>
@@ -59,22 +59,29 @@
               <div class="price">
                 ¥<span>{{ p.price }}</span><small>/{{ p.unit || '份' }}</small>
               </div>
-              <div class="nums">库存 {{ p.stock }} · 销量 {{ p.sales }}</div>
+              <div class="nums">库存 {{ p.stock }}<template v-if="isManager"> · 销量 {{ p.sales }}</template></div>
             </div>
-            <div class="actions">
+            <!-- 管理端操作 -->
+            <div v-if="isManager" class="actions">
               <el-button size="small" :icon="Edit" @click="openEdit(p)">编辑</el-button>
               <el-button size="small" :type="p.status === 1 ? 'warning' : 'success'" @click="toggleStatus(p)">
                 {{ p.status === 1 ? '下架' : '上架' }}
               </el-button>
               <el-button size="small" type="danger" :icon="Delete" @click="remove(p)">删除</el-button>
             </div>
+            <!-- 消费者购买 -->
+            <div v-if="isConsumer" class="actions">
+              <el-button type="primary" :icon="ShoppingCart" :disabled="p.stock <= 0" @click="openBuy(p)">
+                {{ p.stock > 0 ? '立即购买' : '暂无库存' }}
+              </el-button>
+            </div>
           </el-card>
         </el-col>
       </el-row>
     </div>
 
-    <!-- 新增/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑农产品' : '上架农产品'" width="560px">
+    <!-- 新增/编辑弹窗（管理端） -->
+    <el-dialog v-if="isManager" v-model="dialogVisible" :title="editingId ? '编辑农产品' : '上架农产品'" width="560px">
       <el-form :model="form" label-width="90px" :rules="rules" ref="formRef">
         <el-form-item label="名称" prop="name"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="分类">
@@ -114,14 +121,40 @@
         <el-button type="primary" @click="submit">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 购买弹窗（消费者） -->
+    <el-dialog v-model="buyVisible" title="立即购买" width="480px">
+      <div v-if="buy.product" class="buy-summary">
+        <div class="buy-name">{{ buy.product.name }}</div>
+        <div class="buy-meta">单价 ¥{{ buy.product.price }} / {{ buy.product.unit || '份' }} · 库存 {{ buy.product.stock }}</div>
+      </div>
+      <el-form label-width="90px" style="margin-top: 12px">
+        <el-form-item label="购买数量">
+          <el-input-number v-model="buy.quantity" :min="1" :max="buy.product?.stock || 1" />
+        </el-form-item>
+        <el-form-item label="收货人"><el-input v-model="buy.name" /></el-form-item>
+        <el-form-item label="电话"><el-input v-model="buy.phone" /></el-form-item>
+        <el-form-item label="地址"><el-input v-model="buy.address" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="buy.remark" /></el-form-item>
+        <el-form-item label="合计"><b style="color:#2e7d32">¥{{ buyTotal }}</b></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="buyVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitBuy">提交订单</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Edit, Delete, Upload, Location } from '@element-plus/icons-vue'
-import { productApi, categoryApi, originApi } from '../api'
+import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart } from '@element-plus/icons-vue'
+import { productApi, categoryApi, originApi, orderApi } from '../api'
+import userStore, { role, hasRole } from '../stores/user'
+
+const isManager = computed(() => hasRole('admin', 'farmer'))
+const isConsumer = computed(() => role() === 'consumer')
 
 const products = ref([])
 const categories = ref([])
@@ -137,6 +170,11 @@ const rules = {
   name: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
   price: [{ required: true, message: '请输入价格', trigger: 'blur' }]
 }
+
+// 购买
+const buyVisible = ref(false)
+const buy = reactive({ product: null, quantity: 1, name: '', phone: '', address: '', remark: '' })
+const buyTotal = computed(() => (buy.product ? (Number(buy.product.price) * buy.quantity).toFixed(2) : '0.00'))
 
 const loadProducts = async () => {
   loading.value = true
@@ -194,6 +232,30 @@ const handleCoverSuccess = (res) => {
   else { ElMessage.error((res && res.message) || '图片上传失败') }
 }
 
+const openBuy = (p) => {
+  buy.product = p
+  buy.quantity = 1
+  buy.name = userStore.user?.nickname || ''
+  buy.phone = ''
+  buy.address = ''
+  buy.remark = ''
+  buyVisible.value = true
+}
+const submitBuy = async () => {
+  if (!buy.name) return ElMessage.warning('请填写收货人')
+  if (!buy.quantity || buy.quantity < 1) return ElMessage.warning('购买数量至少为 1')
+  await orderApi.create({
+    buyerName: buy.name,
+    buyerPhone: buy.phone,
+    buyerAddress: buy.address,
+    remark: buy.remark,
+    items: [{ productId: buy.product.id, quantity: buy.quantity }]
+  })
+  ElMessage.success('下单成功，可在「我的订单」查看')
+  buyVisible.value = false
+  loadProducts()
+}
+
 onMounted(() => { loadOptions(); loadProducts() })
 </script>
 
@@ -228,4 +290,8 @@ onMounted(() => { loadOptions(); loadProducts() })
 .cover-uploader { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .cover-preview { width: 120px; height: 120px; border-radius: 6px; border: 1px solid #ebeef5; }
 .cover-actions { display: flex; align-items: center; gap: 8px; }
+
+.buy-summary { padding: 12px 14px; background: #f6faf6; border-radius: 8px; }
+.buy-name { font-size: 16px; font-weight: 700; color: #1f2d3d; }
+.buy-meta { margin-top: 4px; font-size: 12px; color: #8a97a0; }
 </style>

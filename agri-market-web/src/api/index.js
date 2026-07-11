@@ -1,5 +1,7 @@
 import request from './request'
 
+export { authApi } from './auth'
+
 export const productApi = {
   list: (params) => request.get('/products', { params }),
   get: (id) => request.get(`/products/${id}`),

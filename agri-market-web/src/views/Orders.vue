@@ -2,8 +2,8 @@
   <el-card shadow="never">
     <template #header>
       <div class="card-header">
-        <span>订单管理</span>
-        <el-button type="primary" :icon="Plus" @click="openCreate">模拟下单</el-button>
+        <span>{{ isConsumer ? '我的订单' : '订单管理' }}</span>
+        <el-button type="primary" :icon="Plus" @click="openCreate">{{ isConsumer ? '去下单' : '模拟下单' }}</el-button>
       </div>
     </template>
 
@@ -23,7 +23,7 @@
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button size="small" :icon="View" @click="openDetail(row)">明细</el-button>
-          <el-button size="small" type="primary" :icon="Edit" @click="openStatus(row)">变更状态</el-button>
+          <el-button v-if="isManager" size="small" type="primary" :icon="Edit" @click="openStatus(row)">变更状态</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -43,7 +43,7 @@
       </div>
     </el-dialog>
 
-    <!-- 变更状态 -->
+    <!-- 变更状态（管理端/农户） -->
     <el-dialog v-model="statusVisible" title="变更订单状态" width="380px">
       <el-form label-width="80px">
         <el-form-item label="状态">
@@ -58,8 +58,8 @@
       </template>
     </el-dialog>
 
-    <!-- 模拟下单 -->
-    <el-dialog v-model="createVisible" title="模拟下单" width="620px">
+    <!-- 下单 -->
+    <el-dialog v-model="createVisible" :title="isConsumer ? '去下单' : '模拟下单'" width="620px">
       <el-form label-width="80px">
         <el-form-item label="买家"><el-input v-model="buyer.name" /></el-form-item>
         <el-form-item label="电话"><el-input v-model="buyer.phone" /></el-form-item>
@@ -90,6 +90,10 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Edit, Delete, View } from '@element-plus/icons-vue'
 import { orderApi, productApi } from '../api'
+import { role, hasRole } from '../stores/user'
+
+const isManager = computed(() => hasRole('admin', 'farmer'))
+const isConsumer = computed(() => role() === 'consumer')
 
 const orders = ref([])
 const availableProducts = ref([])

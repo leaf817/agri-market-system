@@ -1,5 +1,13 @@
 <template>
-  <el-container class="layout">
+  <!-- 登录/注册等公开页：裸渲染，不显示管理布局 -->
+  <router-view v-if="isPublic" v-slot="{ Component }">
+    <transition name="fade" mode="out-in">
+      <component :is="Component" />
+    </transition>
+  </router-view>
+
+  <!-- 管理布局：侧边栏 + 顶栏 + 主内容 -->
+  <el-container v-else class="layout">
     <!-- 侧边栏：Logo + 菜单 -->
     <el-aside width="240px" class="aside">
       <div class="brand">
@@ -10,11 +18,21 @@
         </div>
       </div>
       <el-menu :default-active="$route.path" router class="menu">
-        <el-menu-item index="/products"><el-icon><Goods /></el-icon><span>农产品管理</span></el-menu-item>
-        <el-menu-item index="/categories"><el-icon><Menu /></el-icon><span>分类管理</span></el-menu-item>
-        <el-menu-item index="/origins"><el-icon><Location /></el-icon><span>产地公示</span></el-menu-item>
-        <el-menu-item index="/orders"><el-icon><List /></el-icon><span>订单管理</span></el-menu-item>
-        <el-menu-item index="/statistics"><el-icon><DataAnalysis /></el-icon><span>销量统计</span></el-menu-item>
+        <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/products">
+          <el-icon><Goods /></el-icon><span>{{ role() === 'consumer' ? '农产品' : '农产品管理' }}</span>
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('admin')" index="/categories">
+          <el-icon><Menu /></el-icon><span>分类管理</span>
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('admin')" index="/origins">
+          <el-icon><Location /></el-icon><span>产地公示</span>
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/orders">
+          <el-icon><List /></el-icon><span>{{ role() === 'consumer' ? '我的订单' : '订单管理' }}</span>
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('admin', 'farmer')" index="/statistics">
+          <el-icon><DataAnalysis /></el-icon><span>销量统计</span>
+        </el-menu-item>
       </el-menu>
       <div class="aside-footer">© {{ year }} 乡村助农</div>
     </el-aside>
@@ -25,7 +43,18 @@
         <div class="page-title">{{ pageTitle }}</div>
         <div class="header-right">
           <span class="date">{{ today }}</span>
-          <el-avatar :size="32" class="avatar">陈</el-avatar>
+          <el-tag size="small" :type="roleTagType" effect="light">{{ roleLabel }}</el-tag>
+          <el-dropdown @command="onCommand">
+            <span class="user-trigger">
+              <el-avatar :size="32" class="avatar">{{ avatarText }}</el-avatar>
+              <span class="uname">{{ user?.nickname || user?.username || '未登录' }}</span>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="logout" :icon="SwitchButton">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
       <el-main class="main">
@@ -41,12 +70,35 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { SwitchButton } from '@element-plus/icons-vue'
+import userStore, { role, hasRole, clearSession } from './stores/user'
+import { authApi } from './api'
 
 const route = useRoute()
+const router = useRouter()
+
+const user = computed(() => userStore.user)
+const isPublic = computed(() => !!route.meta?.public)
 const pageTitle = computed(() => route.meta?.title || '概览')
 const year = new Date().getFullYear()
 const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+
+const roleLabelMap = { admin: '管理员', farmer: '农户', consumer: '消费者' }
+const roleTypeMap = { admin: 'danger', farmer: 'warning', consumer: 'success' }
+const roleLabel = computed(() => roleLabelMap[role()] || '游客')
+const roleTagType = computed(() => roleTypeMap[role()] || 'info')
+const avatarText = computed(() => (user.value?.nickname || user.value?.username || '?').slice(0, 1))
+
+const onCommand = async (cmd) => {
+  if (cmd === 'logout') {
+    try { await authApi.logout() } catch (e) { /* 忽略网络错误，本地仍清理 */ }
+    clearSession()
+    ElMessage.success('已退出登录')
+    router.push('/login')
+  }
+}
 </script>
 
 <style>
@@ -94,7 +146,7 @@ const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '
   font-weight: 600;
   border-right: 3px solid var(--brand);
 }
-.aside-footer { padding: 14px; text-align: center; font-size: 12px; color: #aab4c0; border-top: 1px solid #f0f3f0; }
+.aside-footer { padding: 14px; text-align: center; font-size: 12px; color: #aab4c0; border-top: 1px solid #f3f5f3; }
 
 /* 顶栏 */
 .header {
@@ -106,8 +158,10 @@ const today = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '
   border-bottom: 1px solid #eef0ee;
   box-shadow: 0 1px 6px rgba(46, 125, 50, 0.05);
 }
-.header-right { display: flex; align-items: center; gap: 14px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
 .date { font-size: 13px; color: #8a97a0; }
+.user-trigger { display: flex; align-items: center; gap: 8px; cursor: pointer; outline: none; }
+.uname { font-size: 13px; color: #1f2d3d; font-weight: 600; }
 .avatar { background: var(--brand); color: #fff; font-weight: 600; }
 
 /* 主内容 */
