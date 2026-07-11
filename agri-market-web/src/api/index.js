@@ -35,3 +35,20 @@ export const statsApi = {
   byCategory: () => request.get('/stats/by-category'),
   topProducts: (limit = 5) => request.get('/stats/top-products', { params: { limit } })
 }
+
+export const cartApi = {
+  list: () => request.get('/cart'),
+  add: (data) => request.post('/cart', data),
+  update: (id, quantity) => request.put(`/cart/${id}`, { quantity }),
+  remove: (id) => request.delete(`/cart/${id}`),
+  clear: () => request.delete('/cart'),
+  checkout: (data) => request.post('/cart/checkout', data)
+}
+
+export const favoriteApi = {
+  list: () => request.get('/favorites'),
+  ids: () => request.get('/favorites/ids'),
+  add: (productId) => request.post(`/favorites/${productId}`),
+  remove: (productId) => request.delete(`/favorites/${productId}`),
+  toggle: (productId) => request.post(`/favorites/toggle/${productId}`)
+}

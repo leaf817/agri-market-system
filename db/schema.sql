@@ -8,6 +8,8 @@ DROP DATABASE IF EXISTS agrimarket;
 CREATE DATABASE agrimarket DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE agrimarket;
 
+DROP TABLE IF EXISTS cart_item;
+DROP TABLE IF EXISTS favorite;
 DROP TABLE IF EXISTS order_item;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS product;
@@ -104,4 +106,29 @@ CREATE TABLE order_item (
     KEY idx_item_product (product_id),
     CONSTRAINT fk_item_order FOREIGN KEY (order_id) REFERENCES orders (id),
     CONSTRAINT fk_item_product FOREIGN KEY (product_id) REFERENCES product (id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 消费者购物车
+CREATE TABLE cart_item (
+    id          BIGINT      NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT      NOT NULL,
+    product_id  BIGINT      NOT NULL,
+    quantity    INT         NOT NULL DEFAULT 1,
+    create_time DATETIME(6) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_cart_user_product (user_id, product_id),
+    KEY idx_cart_user (user_id),
+    CONSTRAINT fk_cart_product FOREIGN KEY (product_id) REFERENCES product (id)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- 消费者收藏
+CREATE TABLE favorite (
+    id          BIGINT      NOT NULL AUTO_INCREMENT,
+    user_id     BIGINT      NOT NULL,
+    product_id  BIGINT      NOT NULL,
+    create_time DATETIME(6) NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_favorite_user_product (user_id, product_id),
+    KEY idx_favorite_user (user_id),
+    CONSTRAINT fk_favorite_product FOREIGN KEY (product_id) REFERENCES product (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;

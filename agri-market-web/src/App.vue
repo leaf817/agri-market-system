@@ -21,6 +21,12 @@
         <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/products">
           <el-icon><Goods /></el-icon><span>{{ role() === 'consumer' ? '农产品' : '农产品管理' }}</span>
         </el-menu-item>
+        <el-menu-item v-if="hasRole('consumer')" index="/cart">
+          <el-icon><ShoppingCart /></el-icon><span>购物车</span>
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('consumer')" index="/favorites">
+          <el-icon><Star /></el-icon><span>我的收藏</span>
+        </el-menu-item>
         <el-menu-item v-if="hasRole('admin')" index="/categories">
           <el-icon><Menu /></el-icon><span>分类管理</span>
         </el-menu-item>
