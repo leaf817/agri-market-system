@@ -27,9 +27,50 @@
       </div>
     </el-card>
 
-    <!-- 产品卡片网格（消费者只读展示；管理端额外有操作按钮） -->
-    <div v-loading="loading" class="grid-wrap">
-      <el-empty v-if="!loading && products.length === 0" :description="isManager ? '暂无农产品，点击右上角上架' : '暂无在售农产品'" />
+    <!-- 管理端：表格 + 表单弹窗 -->
+    <el-card v-if="isManager" shadow="never">
+      <el-table :data="products" v-loading="loading" border stripe>
+        <el-table-column label="封面" width="84">
+          <template #default="{ row }">
+            <el-image v-if="row.cover" :src="row.cover" :preview-src-list="[row.cover]" fit="cover" preview-teleported class="thumb" />
+            <div v-else class="thumb-empty">🌾</div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="name" label="名称" min-width="140" show-overflow-tooltip />
+        <el-table-column label="分类" width="110">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" type="success">{{ row.category?.name || '未分类' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="产地" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.origin?.name || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="价格" width="120">
+          <template #default="{ row }">¥{{ row.price }}<small class="unit">/{{ row.unit || '份' }}</small></template>
+        </el-table-column>
+        <el-table-column prop="stock" label="库存" width="80" align="center" />
+        <el-table-column prop="sales" label="销量" width="80" align="center" />
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">{{ row.status === 1 ? '上架' : '下架' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="230" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" :icon="Edit" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" :type="row.status === 1 ? 'warning' : 'success'" @click="toggleStatus(row)">
+              {{ row.status === 1 ? '下架' : '上架' }}
+            </el-button>
+            <el-button size="small" type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!loading && products.length === 0" description="暂无农产品，点击右上角上架" />
+    </el-card>
+
+    <!-- 消费者：只读展示卡片 + 购买 -->
+    <div v-else v-loading="loading" class="grid-wrap">
+      <el-empty v-if="!loading && products.length === 0" description="暂无在售农产品" />
       <el-row :gutter="16">
         <el-col v-for="p in products" :key="p.id" :xs="24" :sm="12" :md="8" :lg="6" class="card-col">
           <el-card shadow="hover" class="product-card" :body-style="{ padding: 0 }">
@@ -44,9 +85,6 @@
                 class="cover"
               />
               <div v-else class="cover-empty">🌾</div>
-              <el-tag v-if="isManager" :type="p.status === 1 ? 'success' : 'info'" size="small" class="status-tag">
-                {{ p.status === 1 ? '上架' : '下架' }}
-              </el-tag>
             </div>
             <div class="info">
               <div class="name" :title="p.name">{{ p.name }}</div>
@@ -59,18 +97,9 @@
               <div class="price">
                 ¥<span>{{ p.price }}</span><small>/{{ p.unit || '份' }}</small>
               </div>
-              <div class="nums">库存 {{ p.stock }}<template v-if="isManager"> · 销量 {{ p.sales }}</template></div>
+              <div class="nums">库存 {{ p.stock }}</div>
             </div>
-            <!-- 管理端操作 -->
-            <div v-if="isManager" class="actions">
-              <el-button size="small" :icon="Edit" @click="openEdit(p)">编辑</el-button>
-              <el-button size="small" :type="p.status === 1 ? 'warning' : 'success'" @click="toggleStatus(p)">
-                {{ p.status === 1 ? '下架' : '上架' }}
-              </el-button>
-              <el-button size="small" type="danger" :icon="Delete" @click="remove(p)">删除</el-button>
-            </div>
-            <!-- 消费者购买 -->
-            <div v-if="isConsumer" class="actions">
+            <div class="actions">
               <el-button type="primary" :icon="ShoppingCart" :disabled="p.stock <= 0" @click="openBuy(p)">
                 {{ p.stock > 0 ? '立即购买' : '暂无库存' }}
               </el-button>
@@ -264,6 +293,12 @@ onMounted(() => { loadOptions(); loadProducts() })
 .toolbar-inner { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; }
 .filter { margin-bottom: -18px; }
 
+/* 管理端表格缩略图 */
+.thumb { width: 60px; height: 45px; border-radius: 6px; display: block; }
+.thumb-empty { width: 60px; height: 45px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #eef5ee, #d7e9d8); font-size: 22px; }
+.unit { color: #8a97a0; }
+
+/* 消费者卡片 */
 .grid-wrap { min-height: 200px; }
 .card-col { margin-bottom: 16px; }
 .product-card { border-radius: 12px; overflow: hidden; transition: transform 0.18s ease, box-shadow 0.18s ease; }
@@ -273,7 +308,6 @@ onMounted(() => { loadOptions(); loadProducts() })
 .cover { width: 100%; height: 100%; display: block; }
 .cover :deep(img) { width: 100%; height: 100%; object-fit: cover; }
 .cover-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 48px; }
-.status-tag { position: absolute; top: 8px; right: 8px; }
 
 .info { padding: 12px 14px 8px; }
 .name { font-size: 15px; font-weight: 700; color: #1f2d3d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
