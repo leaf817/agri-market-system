@@ -74,6 +74,8 @@
       </el-main>
     </el-container>
   </el-container>
+
+  <AiChat v-if="!isPublic" />
 </template>
 
 <script setup>
@@ -83,6 +85,7 @@ import { ElMessage } from 'element-plus'
 import { SwitchButton, User } from '@element-plus/icons-vue'
 import userStore, { role, hasRole, clearSession } from './stores/user'
 import { authApi } from './api'
+import AiChat from './components/AiChat.vue'
 
 const route = useRoute()
 const router = useRouter()

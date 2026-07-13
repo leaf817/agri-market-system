@@ -2,8 +2,8 @@
   <div class="login-page">
     <el-card class="login-card" shadow="hover">
       <div class="brand">
-        <div class="brand-icon">🌾</div>
-        <div class="brand-title">农产品信息展示与售卖系统</div>
+        <div class="brand-icon">农</div>
+        <div class="brand-title">农产品信息展示与销售系统</div>
         <div class="brand-sub">乡村助农 · 产地直供</div>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top" @keyup.enter="submit">
@@ -13,7 +13,7 @@
         <el-form-item label="密码" prop="password">
           <el-input v-model="form.password" type="password" placeholder="请输入密码" :prefix-icon="Lock" show-password />
         </el-form-item>
-        <el-button type="primary" :loading="loading" class="submit" @click="submit">登 录</el-button>
+        <el-button type="primary" :loading="loading" class="submit" @click="submit">登录</el-button>
       </el-form>
       <div class="foot">
         <span>还没有账号？</span>
@@ -27,7 +27,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { authApi } from '../api'
 import { setSession } from '../stores/user'
@@ -42,13 +42,27 @@ const rules = {
 }
 
 const submit = async () => {
-  await formRef.value.validate()
+  const valid = await formRef.value.validate().catch(() => false)
+  if (!valid) return
+
   loading.value = true
   try {
-    const data = await authApi.login({ username: form.username, password: form.password })
+    const data = await authApi.login(
+      { username: form.username, password: form.password },
+      { silentError: true }
+    )
     setSession(data.token, data.user)
     ElMessage.success('欢迎回来，' + (data.user.nickname || data.user.username))
     router.push('/products')
+  } catch (error) {
+    await ElMessageBox.alert(
+      '登录失败，用户名错误或密码错误',
+      '登录失败',
+      {
+        type: 'error',
+        confirmButtonText: '确定'
+      }
+    )
   } finally {
     loading.value = false
   }

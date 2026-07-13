@@ -53,9 +53,14 @@ export const favoriteApi = {
   toggle: (productId) => request.post(`/favorites/toggle/${productId}`)
 }
 
+export const aiApi = {
+  chat: (message) => request.post('/ai/chat', { message })
+}
+
 export const profileApi = {
   get: () => request.get('/profile'),
-  update: (data) => request.put('/profile', data)
+  update: (data) => request.put('/profile', data),
+  changePassword: (data) => request.put('/profile/password', data)
 }
 
 export const reviewApi = {

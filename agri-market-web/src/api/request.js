@@ -8,7 +8,6 @@ const request = axios.create({
   timeout: 10000
 })
 
-// 请求拦截：注入 Authorization Bearer token
 request.interceptors.request.use((config) => {
   if (userStore.token) {
     config.headers.Authorization = 'Bearer ' + userStore.token
@@ -16,7 +15,6 @@ request.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截：后端统一返回 { code, message, data }，code=0 为成功
 request.interceptors.response.use(
   (response) => {
     const res = response.data
@@ -24,7 +22,9 @@ request.interceptors.response.use(
       if (res.code === 0) {
         return res.data
       }
-      ElMessage.error(res.message || '请求失败')
+      if (!response.config?.silentError) {
+        ElMessage.error(res.message || '请求失败')
+      }
       return Promise.reject(new Error(res.message || 'Business Error'))
     }
     return res
@@ -35,10 +35,12 @@ request.interceptors.response.use(
     if (status === 401) {
       clearSession()
       if (router.currentRoute.value.path !== '/login') {
-        ElMessage.error(msg || '登录已过期，请重新登录')
+        if (!error.config?.silentError) {
+          ElMessage.error(msg || '登录已过期，请重新登录')
+        }
         router.push('/login')
       }
-    } else {
+    } else if (!error.config?.silentError) {
       ElMessage.error(msg || error.message || '网络异常')
     }
     return Promise.reject(error)

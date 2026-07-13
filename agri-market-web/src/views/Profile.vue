@@ -44,7 +44,30 @@
             </div>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" :icon="Disk" @click="saveProfile">保存修改</el-button>
+            <el-button type="primary" :icon="Check" @click="saveProfile">保存修改</el-button>
+          </el-form-item>
+        </el-form>
+      </el-tab-pane>
+
+      <el-tab-pane label="修改密码" name="password">
+        <el-form
+          ref="passwordFormRef"
+          :model="passwordForm"
+          :rules="passwordRules"
+          label-width="100px"
+          class="profile-form password-form"
+        >
+          <el-form-item label="原密码" prop="oldPassword">
+            <el-input v-model="passwordForm.oldPassword" type="password" placeholder="请输入原密码" :prefix-icon="Lock" show-password />
+          </el-form-item>
+          <el-form-item label="新密码" prop="newPassword">
+            <el-input v-model="passwordForm.newPassword" type="password" placeholder="请输入新密码" :prefix-icon="Lock" show-password />
+          </el-form-item>
+          <el-form-item label="确认密码" prop="confirmPassword">
+            <el-input v-model="passwordForm.confirmPassword" type="password" placeholder="请再次输入新密码" :prefix-icon="Lock" show-password />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :icon="Lock" :loading="passwordSaving" @click="changePassword">修改密码</el-button>
           </el-form-item>
         </el-form>
       </el-tab-pane>
@@ -56,7 +79,7 @@
             <el-table-column label="封面" width="84">
               <template #default="{ row }">
                 <el-image v-if="row.product?.cover" :src="row.product.cover" fit="cover" class="thumb" />
-                <div v-else class="thumb-empty">🌾</div>
+                <div v-else class="thumb-empty">农</div>
               </template>
             </el-table-column>
             <el-table-column label="商品名称" min-width="150">
@@ -98,21 +121,6 @@
         <el-button type="primary" :icon="Plus" style="margin-top: 16px" @click="openAddrForm">添加收货地址</el-button>
       </el-tab-pane>
 
-      <el-dialog v-model="addrDialogVisible" :title="editingAddrId ? '编辑收货地址' : '添加收货地址'" width="480px">
-        <el-form label-width="80px">
-          <el-form-item label="收货人"><el-input v-model="addrForm.name" /></el-form-item>
-          <el-form-item label="手机号"><el-input v-model="addrForm.phone" /></el-form-item>
-          <el-form-item label="地址"><el-input v-model="addrForm.address" type="textarea" :rows="3" /></el-form-item>
-          <el-form-item>
-            <el-checkbox v-model="addrForm.isDefault">设为默认地址</el-checkbox>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="addrDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveAddr">保存</el-button>
-        </template>
-      </el-dialog>
-
       <el-tab-pane label="我的评价" name="review">
         <div v-loading="reviewLoading">
           <el-empty v-if="!reviewLoading && reviews.length === 0" description="暂无评价" />
@@ -138,13 +146,28 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="addrDialogVisible" :title="editingAddrId ? '编辑收货地址' : '添加收货地址'" width="480px">
+      <el-form label-width="80px">
+        <el-form-item label="收货人"><el-input v-model="addrForm.name" /></el-form-item>
+        <el-form-item label="手机号"><el-input v-model="addrForm.phone" /></el-form-item>
+        <el-form-item label="地址"><el-input v-model="addrForm.address" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item>
+          <el-checkbox v-model="addrForm.isDefault">设为默认地址</el-checkbox>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addrDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveAddr">保存</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Upload } from '@element-plus/icons-vue'
+import { Check, Lock, Plus, Star, Upload } from '@element-plus/icons-vue'
 import { profileApi, favoriteApi, reviewApi, addressApi } from '../api'
 import userStore, { role, hasRole } from '../stores/user'
 
@@ -154,6 +177,30 @@ const form = reactive({ nickname: '', phone: '', avatar: '', address: '' })
 const uploadHeaders = computed(() => ({
   Authorization: userStore.token ? `Bearer ${userStore.token}` : ''
 }))
+
+const passwordFormRef = ref()
+const passwordSaving = ref(false)
+const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const passwordRules = {
+  oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 100, message: '新密码长度为 6-100', trigger: 'blur' }
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== passwordForm.newPassword) {
+          callback(new Error('两次输入的新密码不一致'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
+  ]
+}
 
 const favorites = ref([])
 const reviews = ref([])
@@ -167,8 +214,8 @@ const addrForm = reactive({ name: '', phone: '', address: '', isDefault: false }
 
 const roleLabelMap = { admin: '管理员', farmer: '农户', consumer: '消费者' }
 const roleTypeMap = { admin: 'danger', farmer: 'warning', consumer: 'success' }
-const roleLabel = roleLabelMap[role()] || '游客'
-const roleTagType = roleTypeMap[role()] || 'info'
+const roleLabel = computed(() => roleLabelMap[role()] || '游客')
+const roleTagType = computed(() => roleTypeMap[role()] || 'info')
 
 const loadProfile = async () => {
   const data = await profileApi.get()
@@ -210,7 +257,7 @@ const saveAddr = async () => {
   if (!addrForm.name) return ElMessage.warning('请填写收货人')
   if (!addrForm.phone) return ElMessage.warning('请填写手机号')
   if (!addrForm.address) return ElMessage.warning('请填写地址')
-  
+
   if (editingAddrId.value) {
     await addressApi.update(editingAddrId.value, addrForm)
     ElMessage.success('地址已更新')
@@ -239,6 +286,23 @@ const saveProfile = async () => {
   await profileApi.update(form)
   ElMessage.success('保存成功')
   await loadProfile()
+}
+
+const changePassword = async () => {
+  const valid = await passwordFormRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  passwordSaving.value = true
+  try {
+    await profileApi.changePassword({
+      oldPassword: passwordForm.oldPassword,
+      newPassword: passwordForm.newPassword
+    })
+    ElMessage.success('密码修改成功')
+    passwordFormRef.value.resetFields()
+  } finally {
+    passwordSaving.value = false
+  }
 }
 
 const beforeAvatarUpload = (file) => {
@@ -277,7 +341,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.profile-card { max-width: 720px; margin: 0 auto; }
+.profile-card { max-width: 860px; margin: 0 auto; }
 
 .profile-header {
   display: flex;
@@ -296,14 +360,15 @@ onMounted(() => {
 .username { font-size: 13px; color: #8a97a0; margin: 0; }
 
 .profile-tabs { margin-top: 16px; }
-.profile-form { margin-top: 16px; }
+.profile-form { margin-top: 16px; max-width: 560px; }
+.password-form { max-width: 520px; }
 
 .avatar-upload { display: flex; flex-direction: column; gap: 8px; }
 .avatar-preview { width: 100px; height: 100px; border-radius: 8px; border: 1px solid #ebeef5; }
 .avatar-empty { width: 100px; height: 100px; border-radius: 8px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #999; }
 
 .thumb { width: 60px; height: 45px; border-radius: 6px; display: block; }
-.thumb-empty { width: 60px; height: 45px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #eef5ee, #d7e9d8); font-size: 22px; }
+.thumb-empty { width: 60px; height: 45px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #eef5ee, #d7e9d8); font-size: 18px; color: #2e7d32; font-weight: 700; }
 
 .rating { display: flex; gap: 2px; }
 
