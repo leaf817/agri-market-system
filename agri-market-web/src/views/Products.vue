@@ -100,7 +100,15 @@
               <div class="nums">库存 {{ p.stock }}</div>
             </div>
             <div class="actions">
-              <el-button type="primary" :icon="ShoppingCart" :disabled="p.stock <= 0" @click="openBuy(p)">
+              <el-button
+                circle
+                :type="isFav(p.id) ? 'danger' : 'default'"
+                :icon="isFav(p.id) ? StarFilled : Star"
+                :title="isFav(p.id) ? '取消收藏' : '收藏'"
+                @click="toggleFav(p)"
+              />
+              <el-button :icon="ShoppingCart" :disabled="p.stock <= 0" @click="addToCart(p)">加购</el-button>
+              <el-button type="primary" :disabled="p.stock <= 0" @click="openBuy(p)">
                 {{ p.stock > 0 ? '立即购买' : '暂无库存' }}
               </el-button>
               <el-button :icon="Star" :type="isFav(p.id) ? 'warning' : 'default'" @click="toggleFav(p)">
@@ -213,8 +221,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, ChatDotRound } from '@element-plus/icons-vue'
-import { productApi, categoryApi, originApi, orderApi, favoriteApi, reviewApi, cartApi } from '../api'
+import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
+import { productApi, categoryApi, originApi, orderApi, cartApi, favoriteApi } from '../api'
 import userStore, { role, hasRole } from '../stores/user'
 
 const isManager = computed(() => hasRole('admin', 'farmer'))
@@ -223,6 +231,7 @@ const isConsumer = computed(() => role() === 'consumer')
 const products = ref([])
 const categories = ref([])
 const origins = ref([])
+const favoriteIds = ref(new Set())
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
@@ -244,9 +253,35 @@ const loadProducts = async () => {
   loading.value = true
   try { products.value = await productApi.list(filters) } finally { loading.value = false }
 }
+const loadFavorites = async () => {
+  if (!isConsumer.value) return
+  try {
+    const ids = await favoriteApi.ids()
+    favoriteIds.value = new Set(ids || [])
+  } catch (e) {
+    favoriteIds.value = new Set()
+  }
+}
 const loadOptions = async () => {
   categories.value = await categoryApi.list()
   origins.value = await originApi.list()
+}
+const isFav = (productId) => favoriteIds.value.has(productId)
+const toggleFav = async (p) => {
+  const res = await favoriteApi.toggle(p.id)
+  const next = new Set(favoriteIds.value)
+  if (res?.favorited) {
+    next.add(p.id)
+    ElMessage.success('已收藏')
+  } else {
+    next.delete(p.id)
+    ElMessage.success('已取消收藏')
+  }
+  favoriteIds.value = next
+}
+const addToCart = async (p) => {
+  await cartApi.add({ productId: p.id, quantity: 1 })
+  ElMessage.success('已加入购物车')
 }
 const resetFilter = () => {
   Object.assign(filters, { categoryId: null, status: null, keyword: '' })
@@ -320,60 +355,7 @@ const submitBuy = async () => {
   loadProducts()
 }
 
-const favIds = ref(new Set())
-const reviewStats = ref({})
-const reviewVisible = ref(false)
-const currentProduct = ref(null)
-const currentReviews = ref([])
-
-const loadFavStatus = async () => {
-  try {
-    const favs = await favoriteApi.list()
-    favIds.value = new Set(favs.map(f => f.product.id))
-  } catch (e) { favIds.value = new Set() }
-}
-
-const loadReviewStats = async () => {
-  const stats = {}
-  for (const p of products.value) {
-    try {
-      stats[p.id] = await reviewApi.stats(p.id)
-    } catch (e) {
-      stats[p.id] = { count: 0, avgRating: 0 }
-    }
-  }
-  reviewStats.value = stats
-}
-
-const isFav = (productId) => favIds.value.has(productId)
-const getRating = (productId) => Math.round(reviewStats.value[productId]?.avgRating || 0)
-const getReviewCount = (productId) => reviewStats.value[productId]?.count || 0
-
-const toggleFav = async (product) => {
-  await favoriteApi.toggle(product.id)
-  if (isFav(product.id)) {
-    favIds.value.delete(product.id)
-    ElMessage.success('已取消收藏')
-  } else {
-    favIds.value.add(product.id)
-    ElMessage.success('已添加收藏')
-  }
-}
-
-const openReviews = async (product) => {
-  currentProduct.value = product
-  currentReviews.value = await reviewApi.list(product.id)
-  reviewVisible.value = true
-}
-
-onMounted(async () => {
-  await loadOptions()
-  await loadProducts()
-  if (isConsumer.value) {
-    await loadFavStatus()
-    await loadReviewStats()
-  }
-})
+onMounted(() => { loadOptions(); loadProducts(); loadFavorites() })
 </script>
 
 <style scoped>
@@ -406,8 +388,8 @@ onMounted(async () => {
 .price small { color: #8a97a0; font-weight: 400; }
 .nums { margin-top: 6px; font-size: 12px; color: #aab4c0; }
 
-.actions { display: flex; gap: 6px; padding: 10px 14px 14px; border-top: 1px solid #f3f5f3; }
-.actions .el-button { flex: 1; }
+.actions { display: flex; gap: 6px; padding: 10px 14px 14px; border-top: 1px solid #f3f5f3; align-items: center; }
+.actions .el-button:not(.is-circle) { flex: 1; }
 
 .cover-uploader { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .cover-preview { width: 120px; height: 120px; border-radius: 6px; border: 1px solid #ebeef5; }

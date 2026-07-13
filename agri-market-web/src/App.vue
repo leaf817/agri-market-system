@@ -26,7 +26,6 @@
         </el-menu-item>
         <el-menu-item v-if="hasRole('consumer')" index="/cart">
           <el-icon><ShoppingCart /></el-icon><span>购物车</span>
-          <el-badge v-if="cartCount > 0" :value="cartCount" class="cart-badge" />
         </el-menu-item>
         <el-menu-item v-if="hasRole('consumer')" index="/favorites">
           <el-icon><Star /></el-icon><span>我的收藏</span>

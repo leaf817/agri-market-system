@@ -1,222 +1,217 @@
 <template>
-  <el-card shadow="never">
-    <template #header>
-      <div class="card-header">
-        <span>购物车</span>
-        <el-button v-if="items.length > 0" text type="danger" :icon="Delete" @click="clearCart">清空购物车</el-button>
-      </div>
-    </template>
-
-    <div v-loading="loading">
-      <el-empty v-if="!loading && items.length === 0" description="购物车是空的，去选购农产品吧" />
-      <div v-else class="cart-list">
-        <div v-for="item in items" :key="item.id" class="cart-item">
-          <div class="item-cover">
-            <el-image v-if="item.product.cover" :src="item.product.cover" fit="cover" class="cover" />
-            <div v-else class="cover-empty">🌾</div>
-          </div>
-          <div class="item-info">
-            <div class="item-name">{{ item.product.name }}</div>
-            <div class="item-meta">
-              <el-tag size="small" effect="plain" type="success">{{ item.product.category?.name || '未分类' }}</el-tag>
-              <span class="origin">{{ item.product.origin?.name || '产地未公示' }}</span>
-            </div>
-            <div class="item-price">¥{{ item.product.price }} <small>/{{ item.product.unit || '份' }}</small></div>
-            <div class="item-stock">库存 {{ item.product.stock }}</div>
-          </div>
-          <div class="item-right">
-            <el-input-number v-model="item.quantity" :min="1" :max="item.product.stock" @change="updateQty(item)" class="quantity" />
-            <div class="item-total">¥{{ (item.product.price * item.quantity).toFixed(2) }}</div>
-            <el-button text type="danger" :icon="Delete" @click="removeItem(item)">删除</el-button>
-          </div>
+  <div>
+    <el-card shadow="never" class="toolbar">
+      <div class="toolbar-inner">
+        <span class="title">我的购物车</span>
+        <div class="ops">
+          <el-button :disabled="!list.length" @click="clearAll">清空购物车</el-button>
+          <el-button type="primary" :disabled="!selected.length" @click="openCheckout">
+            结算（已选 {{ selected.length }}）
+          </el-button>
         </div>
       </div>
-    </div>
+    </el-card>
 
-    <div v-if="items.length > 0" class="cart-footer">
-      <div class="total-info">
-        <span>共 {{ totalCount }} 件商品</span>
-        <span class="total-price">合计：<b>¥{{ totalAmount }}</b></span>
-      </div>
-      <el-button type="primary" size="large" :icon="ShoppingCart" @click="checkout">去结算</el-button>
-    </div>
+    <el-card shadow="never" v-loading="loading">
+      <el-empty v-if="!loading && list.length === 0" description="购物车还是空的，去选购农产品吧">
+        <el-button type="primary" @click="$router.push('/products')">去逛逛</el-button>
+      </el-empty>
 
-    <el-dialog v-model="checkoutVisible" title="确认订单" width="560px">
-      <el-form label-width="90px">
-        <el-form-item label="收货地址">
-          <div v-if="addresses.length > 0">
-            <div v-for="addr in addresses" :key="addr.id" 
-                 class="address-option" :class="{ 'is-selected': buy.addressId === addr.id }"
-                 @click="selectAddress(addr)">
-              <div class="addr-main">
-                <span>{{ addr.name }} {{ addr.phone }}</span>
-                <el-tag v-if="addr.isDefault" size="small" type="success">默认</el-tag>
+      <el-table
+        v-else
+        :data="list"
+        border
+        stripe
+        @selection-change="onSelect"
+        ref="tableRef"
+      >
+        <el-table-column type="selection" width="48" :selectable="rowSelectable" />
+        <el-table-column label="商品" min-width="260">
+          <template #default="{ row }">
+            <div class="goods">
+              <el-image
+                v-if="row.product?.cover"
+                :src="row.product.cover"
+                fit="cover"
+                class="thumb"
+              />
+              <div v-else class="thumb-empty">🌾</div>
+              <div>
+                <div class="name">{{ row.product?.name || '商品已失效' }}</div>
+                <div class="sub">
+                  <el-tag v-if="row.product?.status !== 1" size="small" type="info">已下架</el-tag>
+                  <span v-else>产地 {{ row.product?.origin?.name || '-' }}</span>
+                </div>
               </div>
-              <div class="addr-detail">{{ addr.address }}</div>
             </div>
-          </div>
-          <div v-else class="no-address">暂无收货地址，请在个人中心添加</div>
-        </el-form-item>
-        <el-form-item label="收货人"><el-input v-model="buy.name" /></el-form-item>
-        <el-form-item label="电话"><el-input v-model="buy.phone" /></el-form-item>
-        <el-form-item label="地址"><el-input v-model="buy.address" /></el-form-item>
-        <el-form-item label="备注"><el-input v-model="buy.remark" /></el-form-item>
-        <el-form-item label="商品清单">
-          <el-table :data="items" border size="small">
-            <el-table-column prop="product.name" label="商品" />
-            <el-table-column prop="quantity" label="数量" width="80" />
-            <el-table-column label="小计" width="100"><template #default="{ row }">¥{{ (row.product.price * row.quantity).toFixed(2) }}</template></el-table-column>
-          </el-table>
-        </el-form-item>
-        <el-form-item label="合计"><b style="color:#2e7d32">¥{{ totalAmount }}</b></el-form-item>
+          </template>
+        </el-table-column>
+        <el-table-column label="单价" width="120">
+          <template #default="{ row }">
+            ¥{{ row.product?.price }}<small class="unit">/{{ row.product?.unit || '份' }}</small>
+          </template>
+        </el-table-column>
+        <el-table-column label="数量" width="160">
+          <template #default="{ row }">
+            <el-input-number
+              :model-value="row.quantity"
+              :min="1"
+              :max="Math.max(row.product?.stock || 1, 1)"
+              :disabled="!row.product || row.product.status !== 1"
+              @change="(v) => changeQty(row, v)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="库存" width="80" align="center">
+          <template #default="{ row }">{{ row.product?.stock ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column label="小计" width="120">
+          <template #default="{ row }">
+            <b class="amount">¥{{ lineAmount(row) }}</b>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" fixed="right">
+          <template #default="{ row }">
+            <el-button size="small" type="danger" text @click="removeItem(row)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div v-if="list.length" class="footer-bar">
+        <span>已选 {{ selected.length }} 件，合计 <b class="amount">¥{{ selectedTotal }}</b></span>
+        <el-button type="primary" :disabled="!selected.length" @click="openCheckout">去结算</el-button>
+      </div>
+    </el-card>
+
+    <el-dialog v-model="checkoutVisible" title="确认结算" width="480px">
+      <el-form label-width="90px">
+        <el-form-item label="收货人"><el-input v-model="buyer.name" placeholder="请填写收货人" /></el-form-item>
+        <el-form-item label="电话"><el-input v-model="buyer.phone" placeholder="请填写联系电话" /></el-form-item>
+        <el-form-item label="地址"><el-input v-model="buyer.address" placeholder="请填写收货地址" /></el-form-item>
+        <el-form-item label="备注"><el-input v-model="buyer.remark" /></el-form-item>
+        <el-form-item label="合计"><b class="amount">¥{{ selectedTotal }}</b></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="checkoutVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitOrder">提交订单</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitCheckout">提交订单</el-button>
       </template>
     </el-dialog>
-  </el-card>
+  </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, ShoppingCart } from '@element-plus/icons-vue'
-import { cartApi, orderApi, addressApi } from '../api'
+import { cartApi } from '../api'
 import userStore from '../stores/user'
 
-const items = ref([])
+const router = useRouter()
 const loading = ref(false)
+const submitting = ref(false)
+const list = ref([])
+const selected = ref([])
 const checkoutVisible = ref(false)
-const addresses = ref([])
+const buyer = reactive({ name: '', phone: '', address: '', remark: '' })
 
-const buy = reactive({ addressId: null, name: '', phone: '', address: '', remark: '' })
-
-const totalCount = computed(() => items.value.reduce((sum, item) => sum + item.quantity, 0))
-const totalAmount = computed(() => items.value.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0).toFixed(2))
+const lineAmount = (row) => {
+  const price = Number(row.product?.price || 0)
+  return (price * (row.quantity || 0)).toFixed(2)
+}
+const selectedTotal = computed(() =>
+  selected.value.reduce((sum, row) => sum + Number(lineAmount(row)), 0).toFixed(2)
+)
+const rowSelectable = (row) => row.product && row.product.status === 1 && row.product.stock > 0
 
 const load = async () => {
   loading.value = true
-  try { items.value = await cartApi.list() } finally { loading.value = false }
+  try {
+    list.value = await cartApi.list()
+    selected.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
-const updateQty = async (item) => {
-  await cartApi.updateQuantity(item.id, item.quantity)
+const onSelect = (rows) => { selected.value = rows }
+
+const changeQty = async (row, qty) => {
+  if (!qty || qty < 1) return
+  try {
+    await cartApi.update(row.id, qty)
+    row.quantity = qty
+  } catch (e) {
+    await load()
+  }
 }
 
-const removeItem = async (item) => {
-  await ElMessageBox.confirm(`确定删除「${item.product.name}」吗？`, '提示', { type: 'warning' })
-  await cartApi.remove(item.id)
-  ElMessage.success('已删除')
+const removeItem = async (row) => {
+  await ElMessageBox.confirm(`从购物车移除「${row.product?.name || '该商品'}」？`, '提示', { type: 'warning' })
+  await cartApi.remove(row.id)
+  ElMessage.success('已移除')
   load()
 }
 
-const clearCart = async () => {
+const clearAll = async () => {
   await ElMessageBox.confirm('确定清空购物车吗？', '提示', { type: 'warning' })
   await cartApi.clear()
-  ElMessage.success('已清空')
+  ElMessage.success('购物车已清空')
   load()
 }
 
-const loadAddresses = async () => {
-  addresses.value = await addressApi.list()
-}
-
-const selectAddress = (addr) => {
-  buy.addressId = addr.id
-  buy.name = addr.name
-  buy.phone = addr.phone
-  buy.address = addr.address
-}
-
-const checkout = async () => {
-  await loadAddresses()
-  buy.addressId = null
-  buy.name = userStore.user?.nickname || ''
-  buy.phone = userStore.user?.phone || ''
-  buy.address = userStore.user?.address || ''
-  buy.remark = ''
-  
-  const defaultAddr = addresses.value.find(a => a.isDefault)
-  if (defaultAddr) {
-    selectAddress(defaultAddr)
-  }
+const openCheckout = () => {
+  if (!selected.value.length) return ElMessage.warning('请先勾选要结算的商品')
+  buyer.name = userStore.user?.nickname || ''
+  buyer.phone = ''
+  buyer.address = ''
+  buyer.remark = ''
   checkoutVisible.value = true
 }
 
-const submitOrder = async () => {
-  if (!buy.name) return ElMessage.warning('请填写收货人')
-  if (!buy.address) return ElMessage.warning('请填写收货地址')
-  
-  await orderApi.create({
-    buyerName: buy.name,
-    buyerPhone: buy.phone,
-    buyerAddress: buy.address,
-    remark: buy.remark,
-    items: items.value.map(item => ({ productId: item.product.id, quantity: item.quantity }))
-  })
-  
-  ElMessage.success('下单成功')
-  checkoutVisible.value = false
-  await cartApi.clear()
-  load()
+const submitCheckout = async () => {
+  if (!buyer.name) return ElMessage.warning('请填写收货人')
+  submitting.value = true
+  try {
+    await cartApi.checkout({
+      cartItemIds: selected.value.map((r) => r.id),
+      buyerName: buyer.name,
+      buyerPhone: buyer.phone,
+      buyerAddress: buyer.address,
+      remark: buyer.remark
+    })
+    ElMessage.success('下单成功')
+    checkoutVisible.value = false
+    await load()
+    router.push('/orders')
+  } finally {
+    submitting.value = false
+  }
 }
 
 onMounted(load)
 </script>
 
 <style scoped>
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.toolbar { margin-bottom: 16px; }
+.toolbar-inner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.title { font-size: 16px; font-weight: 700; color: #1f2d3d; }
+.ops { display: flex; gap: 8px; }
 
-.cart-list { padding: 12px 0; }
-.cart-item {
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-  background: #fafcf9;
-  border-radius: 12px;
-  margin-bottom: 12px;
-  align-items: center;
+.goods { display: flex; align-items: center; gap: 12px; }
+.thumb { width: 56px; height: 56px; border-radius: 8px; flex: none; }
+.thumb-empty {
+  width: 56px; height: 56px; border-radius: 8px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #eef5ee, #d7e9d8); font-size: 22px;
 }
+.name { font-weight: 650; color: #1f2d3d; }
+.sub { margin-top: 4px; font-size: 12px; color: #8a97a0; }
+.unit { color: #8a97a0; margin-left: 2px; }
+.amount { color: #2e7d32; }
 
-.item-cover { flex: none; width: 100px; height: 80px; border-radius: 8px; overflow: hidden; background: #eef5ee; }
-.cover { width: 100%; height: 100%; }
-.cover-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 32px; }
-
-.item-info { flex: 1; min-width: 0; }
-.item-name { font-size: 15px; font-weight: 600; color: #1f2d3d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-.origin { font-size: 12px; color: #8a97a0; }
-.item-price { margin-top: 8px; font-size: 16px; font-weight: 700; color: #2e7d32; }
-.item-price small { color: #8a97a0; font-weight: 400; font-size: 13px; }
-.item-stock { margin-top: 4px; font-size: 12px; color: #aab4c0; }
-
-.item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-.quantity { width: 100px; }
-.item-total { font-size: 15px; font-weight: 700; color: #2e7d32; }
-
-.cart-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-top: 1px solid #eef0ee;
-  margin-top: 12px;
+.footer-bar {
+  margin-top: 16px;
+  display: flex; justify-content: flex-end; align-items: center; gap: 16px;
+  padding-top: 12px; border-top: 1px solid #eef2ee;
 }
-.total-info { display: flex; align-items: center; gap: 16px; font-size: 14px; color: #5a6a5a; }
-.total-price b { font-size: 20px; color: #2e7d32; }
-
-.address-option {
-  padding: 12px;
-  border: 1px solid #eef0ee;
-  border-radius: 8px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.address-option:hover { border-color: #2e7d32; }
-.address-option.is-selected { border-color: #2e7d32; background: #f1f8f1; }
-.addr-main { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
-.addr-detail { font-size: 13px; color: #5a6a5a; margin-top: 4px; }
-.no-address { text-align: center; color: #8a97a0; padding: 20px; }
 </style>

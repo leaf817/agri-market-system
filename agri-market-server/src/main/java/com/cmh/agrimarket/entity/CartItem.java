@@ -9,12 +9,15 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * 消费者购物车条目：同一用户同一商品仅一条，数量可累加。
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "cart_item")
+@Table(name = "cart_item", uniqueConstraints = @UniqueConstraint(name = "uk_cart_user_product", columnNames = {"user_id", "product_id"}))
 public class CartItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,14 +34,6 @@ public class CartItem {
     private Integer quantity = 1;
 
     @CreationTimestamp
-    @Column(updatable = false)
+    @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
-
-    @Column(name = "update_time")
-    private LocalDateTime updateTime;
-
-    @PreUpdate
-    public void preUpdate() {
-        this.updateTime = LocalDateTime.now();
-    }
 }

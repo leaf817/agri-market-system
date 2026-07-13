@@ -38,38 +38,17 @@ export const statsApi = {
 
 export const cartApi = {
   list: () => request.get('/cart'),
-  count: () => request.get('/cart/count'),
-  add: (productId, quantity = 1) => request.post('/cart', null, { params: { productId, quantity } }),
-  updateQuantity: (id, quantity) => request.put(`/cart/${id}/quantity`, null, { params: { quantity } }),
+  add: (data) => request.post('/cart', data),
+  update: (id, quantity) => request.put(`/cart/${id}`, { quantity }),
   remove: (id) => request.delete(`/cart/${id}`),
-  clear: () => request.delete('/cart')
-}
-
-export const reviewApi = {
-  list: (productId) => request.get('/reviews', { params: { productId } }),
-  stats: (productId) => request.get(`/reviews/product/${productId}/stats`),
-  create: (productId, rating, content) => request.post('/reviews', null, { params: { productId, rating, content } }),
-  remove: (id) => request.delete(`/reviews/${id}`)
+  clear: () => request.delete('/cart'),
+  checkout: (data) => request.post('/cart/checkout', data)
 }
 
 export const favoriteApi = {
   list: () => request.get('/favorites'),
-  count: () => request.get('/favorites/count'),
-  check: (productId) => request.get('/favorites/check', { params: { productId } }),
-  toggle: (productId) => request.post('/favorites', null, { params: { productId } })
-}
-
-export const profileApi = {
-  get: () => request.get('/profile'),
-  update: (data) => request.put('/profile', data)
-}
-
-export const addressApi = {
-  list: () => request.get('/addresses'),
-  getDefault: () => request.get('/addresses/default'),
-  get: (id) => request.get(`/addresses/${id}`),
-  create: (data) => request.post('/addresses', null, { params: data }),
-  update: (id, data) => request.put(`/addresses/${id}`, null, { params: data }),
-  remove: (id) => request.delete(`/addresses/${id}`),
-  setDefault: (id) => request.patch(`/addresses/${id}/default`)
+  ids: () => request.get('/favorites/ids'),
+  add: (productId) => request.post(`/favorites/${productId}`),
+  remove: (productId) => request.delete(`/favorites/${productId}`),
+  toggle: (productId) => request.post(`/favorites/toggle/${productId}`)
 }

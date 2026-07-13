@@ -2,12 +2,11 @@ package com.cmh.agrimarket.repository;
 
 import com.cmh.agrimarket.entity.Favorite;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
 
-@Repository
 public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
     List<Favorite> findByUserIdOrderByCreateTimeDesc(Long userId);
 
@@ -17,5 +16,6 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 
     void deleteByUserIdAndProductId(Long userId, Long productId);
 
-    long countByUserId(Long userId);
+    @Query("select f.product.id from Favorite f where f.userId = :userId")
+    List<Long> findProductIdsByUserId(Long userId);
 }

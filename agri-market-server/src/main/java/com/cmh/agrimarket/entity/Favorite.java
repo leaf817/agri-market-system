@@ -9,12 +9,15 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * 消费者商品收藏：同一用户同一商品仅一条。
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "favorite")
+@Table(name = "favorite", uniqueConstraints = @UniqueConstraint(name = "uk_favorite_user_product", columnNames = {"user_id", "product_id"}))
 public class Favorite {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,6 +31,6 @@ public class Favorite {
     private Product product;
 
     @CreationTimestamp
-    @Column(updatable = false)
+    @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
 }

@@ -8,7 +8,6 @@ const routes = [
   { path: '/products', name: 'products', component: () => import('../views/Products.vue'), meta: { title: '农产品', roles: ['admin', 'farmer', 'consumer'] } },
   { path: '/cart', name: 'cart', component: () => import('../views/Cart.vue'), meta: { title: '购物车', roles: ['consumer'] } },
   { path: '/favorites', name: 'favorites', component: () => import('../views/Favorites.vue'), meta: { title: '我的收藏', roles: ['consumer'] } },
-  { path: '/profile', name: 'profile', component: () => import('../views/Profile.vue'), meta: { title: '个人中心', roles: ['admin', 'farmer', 'consumer'] } },
   { path: '/categories', name: 'categories', component: () => import('../views/Categories.vue'), meta: { title: '分类管理', roles: ['admin'] } },
   { path: '/origins', name: 'origins', component: () => import('../views/Origins.vue'), meta: { title: '产地公示', roles: ['admin'] } },
   { path: '/orders', name: 'orders', component: () => import('../views/Orders.vue'), meta: { title: '订单', roles: ['admin', 'farmer', 'consumer'] } },
