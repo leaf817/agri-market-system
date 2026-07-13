@@ -51,3 +51,19 @@ html, body, #app {
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #c7d2c7; border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* 评分组件 */
+.el-rate {
+  font-size: 24px !important;
+  overflow: visible !important;
+  display: inline-flex !important;
+  width: auto !important;
+  flex-wrap: nowrap;
+}
+.el-rate .el-rate__icon {
+  margin-right: 4px !important;
+  flex-shrink: 0 !important;
+}
+.el-rate__text {
+  margin-left: 8px;
+}

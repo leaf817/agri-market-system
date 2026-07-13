@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 8082
 
 spring:
   application:
@@ -8,7 +8,7 @@ spring:
     # createDatabaseIfNotExist=true：连接时若库不存在会自动创建，无需手动 CREATE DATABASE
     url: jdbc:mysql://localhost:3306/agrimarket?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8&allowPublicKeyRetrieval=true
     username: root
-    password: 123456
+    password: 241010
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:

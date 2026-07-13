@@ -103,6 +103,16 @@
               <el-button type="primary" :icon="ShoppingCart" :disabled="p.stock <= 0" @click="openBuy(p)">
                 {{ p.stock > 0 ? '立即购买' : '暂无库存' }}
               </el-button>
+              <el-button :icon="Star" :type="isFav(p.id) ? 'warning' : 'default'" @click="toggleFav(p)">
+                {{ isFav(p.id) ? '已收藏' : '收藏' }}
+              </el-button>
+              <el-button :icon="ChatDotRound" @click="openReviews(p)">查看评价</el-button>
+            </div>
+            <div class="review-info">
+              <span class="rating" @click="openReviews(p)">
+                <el-icon v-for="i in 5" :key="i" :color="i <= getRating(p.id) ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
+              </span>
+              <span class="review-count" @click="openReviews(p)">{{ getReviewCount(p.id) }} 条评价</span>
             </div>
           </el-card>
         </el-col>
@@ -172,14 +182,39 @@
         <el-button type="primary" @click="submitBuy">提交订单</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="reviewVisible" :title="`${currentProduct?.name} - 商品评价`" width="620px">
+      <div v-if="currentProduct" class="review-header">
+        <div class="review-rating">
+          <el-icon v-for="i in 5" :key="i" :color="i <= getRating(currentProduct.id) ? '#ffb300' : '#e0e0e0'" size="24"><Star /></el-icon>
+          <span>{{ getRating(currentProduct.id) }}.0 分</span>
+        </div>
+        <span class="review-count">{{ getReviewCount(currentProduct.id) }} 条评价</span>
+      </div>
+
+      <div v-if="currentReviews.length > 0" class="review-list">
+        <h4>评价列表</h4>
+        <div v-for="r in currentReviews" :key="r.id" class="review-item">
+          <div class="review-item-header">
+            <span class="reviewer">{{ r.userId }}</span>
+            <div class="review-item-rating">
+              <el-icon v-for="i in 5" :key="i" :color="i <= r.rating ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
+            </div>
+            <span class="review-time">{{ r.createTime }}</span>
+          </div>
+          <div class="review-content">{{ r.content }}</div>
+        </div>
+      </div>
+      <el-empty v-else description="暂无评价，请先购买该商品后再评价" />
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart } from '@element-plus/icons-vue'
-import { productApi, categoryApi, originApi, orderApi } from '../api'
+import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, ChatDotRound } from '@element-plus/icons-vue'
+import { productApi, categoryApi, originApi, orderApi, favoriteApi, reviewApi, cartApi } from '../api'
 import userStore, { role, hasRole } from '../stores/user'
 
 const isManager = computed(() => hasRole('admin', 'farmer'))
@@ -285,7 +320,60 @@ const submitBuy = async () => {
   loadProducts()
 }
 
-onMounted(() => { loadOptions(); loadProducts() })
+const favIds = ref(new Set())
+const reviewStats = ref({})
+const reviewVisible = ref(false)
+const currentProduct = ref(null)
+const currentReviews = ref([])
+
+const loadFavStatus = async () => {
+  try {
+    const favs = await favoriteApi.list()
+    favIds.value = new Set(favs.map(f => f.product.id))
+  } catch (e) { favIds.value = new Set() }
+}
+
+const loadReviewStats = async () => {
+  const stats = {}
+  for (const p of products.value) {
+    try {
+      stats[p.id] = await reviewApi.stats(p.id)
+    } catch (e) {
+      stats[p.id] = { count: 0, avgRating: 0 }
+    }
+  }
+  reviewStats.value = stats
+}
+
+const isFav = (productId) => favIds.value.has(productId)
+const getRating = (productId) => Math.round(reviewStats.value[productId]?.avgRating || 0)
+const getReviewCount = (productId) => reviewStats.value[productId]?.count || 0
+
+const toggleFav = async (product) => {
+  await favoriteApi.toggle(product.id)
+  if (isFav(product.id)) {
+    favIds.value.delete(product.id)
+    ElMessage.success('已取消收藏')
+  } else {
+    favIds.value.add(product.id)
+    ElMessage.success('已添加收藏')
+  }
+}
+
+const openReviews = async (product) => {
+  currentProduct.value = product
+  currentReviews.value = await reviewApi.list(product.id)
+  reviewVisible.value = true
+}
+
+onMounted(async () => {
+  await loadOptions()
+  await loadProducts()
+  if (isConsumer.value) {
+    await loadFavStatus()
+    await loadReviewStats()
+  }
+})
 </script>
 
 <style scoped>
@@ -328,4 +416,34 @@ onMounted(() => { loadOptions(); loadProducts() })
 .buy-summary { padding: 12px 14px; background: #f6faf6; border-radius: 8px; }
 .buy-name { font-size: 16px; font-weight: 700; color: #1f2d3d; }
 .buy-meta { margin-top: 4px; font-size: 12px; color: #8a97a0; }
+
+.review-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 10px;
+  font-size: 12px;
+  color: #8a97a0;
+  cursor: pointer;
+}
+.review-info .rating { display: flex; }
+.review-count { color: #8a97a0; }
+
+.review-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: #fafcf9;
+  border-radius: 8px;
+}
+.review-rating { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 600; color: #ffb300; }
+.review-list h4 { margin: 16px 0 12px; font-size: 14px; font-weight: 600; }
+.review-item { padding: 12px; border-bottom: 1px solid #f3f5f3; }
+.review-item:last-child { border-bottom: none; }
+.review-item-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.reviewer { font-size: 13px; font-weight: 600; color: #1f2d3d; }
+.review-item-rating { display: flex; }
+.review-time { font-size: 12px; color: #aab4c0; margin-left: auto; }
+.review-content { font-size: 13px; color: #5a6a5a; line-height: 1.6; }
 </style>

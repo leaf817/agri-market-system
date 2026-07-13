@@ -9,10 +9,14 @@ public record UserVO(
         Long id,
         String username,
         String nickname,
+        String phone,
+        String avatar,
+        String address,
         String role
 ) {
     public static UserVO of(User u) {
         return new UserVO(u.getId(), u.getUsername(), u.getNickname(),
+                u.getPhone(), u.getAvatar(), u.getAddress(),
                 u.getRole() == null ? null : u.getRole().name().toLowerCase());
     }
 }

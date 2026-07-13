@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
@@ -14,39 +15,31 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "user")
-public class User {
+@Table(name = "address")
+public class Address {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 50)
-    private String username;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
-    /** BCrypt 哈希后的密码 */
-    @Column(nullable = false, length = 100)
-    private String password;
+    @Column(nullable = false, length = 50)
+    private String name;
 
-    @Column(length = 50)
-    private String nickname;
-
-    @Column(length = 15)
+    @Column(nullable = false, length = 15)
     private String phone;
 
-    @Column(length = 500)
-    private String avatar;
-
-    @Column(length = 500)
+    @Column(nullable = false, length = 500)
     private String address;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private Role role;
-
     @Column(nullable = false)
-    private Boolean enabled = true;
+    private Boolean isDefault = false;
 
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createTime;
+
+    @UpdateTimestamp
+    private LocalDateTime updateTime;
 }

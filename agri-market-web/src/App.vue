@@ -18,8 +18,18 @@
         </div>
       </div>
       <el-menu :default-active="$route.path" router class="menu">
+        <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/profile">
+          <el-icon><User /></el-icon><span>个人中心</span>
+        </el-menu-item>
         <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/products">
           <el-icon><Goods /></el-icon><span>{{ role() === 'consumer' ? '农产品' : '农产品管理' }}</span>
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('consumer')" index="/cart">
+          <el-icon><ShoppingCart /></el-icon><span>购物车</span>
+          <el-badge v-if="cartCount > 0" :value="cartCount" class="cart-badge" />
+        </el-menu-item>
+        <el-menu-item v-if="hasRole('consumer')" index="/favorites">
+          <el-icon><Star /></el-icon><span>我的收藏</span>
         </el-menu-item>
         <el-menu-item v-if="hasRole('admin')" index="/categories">
           <el-icon><Menu /></el-icon><span>分类管理</span>
@@ -69,12 +79,12 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { SwitchButton } from '@element-plus/icons-vue'
-import userStore, { role, hasRole, clearSession } from './stores/user'
-import { authApi } from './api'
+import { SwitchButton, ShoppingCart, Star, User, Goods, Location, List, DataAnalysis, Menu } from '@element-plus/icons-vue'
+import userStore, { role, hasRole, clearSession, isLogin } from './stores/user'
+import { authApi, cartApi } from './api'
 
 const route = useRoute()
 const router = useRouter()
@@ -91,14 +101,29 @@ const roleLabel = computed(() => roleLabelMap[role()] || '游客')
 const roleTagType = computed(() => roleTypeMap[role()] || 'info')
 const avatarText = computed(() => (user.value?.nickname || user.value?.username || '?').slice(0, 1))
 
+const cartCount = ref(0)
+
+const loadCartCount = async () => {
+  if (isLogin() && hasRole('consumer')) {
+    try { cartCount.value = await cartApi.count() } catch (e) { cartCount.value = 0 }
+  } else {
+    cartCount.value = 0
+  }
+}
+
 const onCommand = async (cmd) => {
   if (cmd === 'logout') {
     try { await authApi.logout() } catch (e) { /* 忽略网络错误，本地仍清理 */ }
     clearSession()
+    cartCount.value = 0
     ElMessage.success('已退出登录')
     router.push('/login')
+  } else if (cmd === 'profile') {
+    router.push('/profile')
   }
 }
+
+onMounted(loadCartCount)
 </script>
 
 <style>
@@ -147,6 +172,7 @@ const onCommand = async (cmd) => {
   border-right: 3px solid var(--brand);
 }
 .aside-footer { padding: 14px; text-align: center; font-size: 12px; color: #aab4c0; border-top: 1px solid #f3f5f3; }
+.cart-badge { position: absolute; top: 8px; right: 12px; }
 
 /* 顶栏 */
 .header {
