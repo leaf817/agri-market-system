@@ -16,6 +16,11 @@ export default defineConfig({
       '/uploads': {
         target: 'http://localhost:8081',
         changeOrigin: true
+      },
+      // 演示封面（classpath:/static/covers）
+      '/covers': {
+        target: 'http://localhost:8081',
+        changeOrigin: true
       }
     }
   }
