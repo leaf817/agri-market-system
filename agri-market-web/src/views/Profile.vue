@@ -28,7 +28,16 @@
             <div class="avatar-upload">
               <el-image v-if="form.avatar" :src="form.avatar" class="avatar-preview" fit="cover" />
               <div v-else class="avatar-empty">上传头像</div>
-              <el-upload action="/api/upload" accept="image/*" :show-file-list="false" :before-upload="beforeAvatarUpload" :on-success="handleAvatarSuccess">
+              <el-upload
+                action="/api/upload"
+                name="file"
+                accept="image/*"
+                :show-file-list="false"
+                :headers="uploadHeaders"
+                :before-upload="beforeAvatarUpload"
+                :on-success="handleAvatarSuccess"
+                :on-error="() => ElMessage.error('头像上传失败，请确认已登录')"
+              >
                 <el-button :icon="Upload" size="small">{{ form.avatar ? '更换头像' : '上传头像' }}</el-button>
               </el-upload>
               <el-button v-if="form.avatar" text type="danger" size="small" @click="form.avatar = ''">移除</el-button>
@@ -46,16 +55,18 @@
           <el-table v-else :data="favorites" border stripe>
             <el-table-column label="封面" width="84">
               <template #default="{ row }">
-                <el-image v-if="row.product.cover" :src="row.product.cover" fit="cover" class="thumb" />
+                <el-image v-if="row.product?.cover" :src="row.product.cover" fit="cover" class="thumb" />
                 <div v-else class="thumb-empty">🌾</div>
               </template>
             </el-table-column>
-            <el-table-column prop="product.name" label="商品名称" min-width="150" />
+            <el-table-column label="商品名称" min-width="150">
+              <template #default="{ row }">{{ row.product?.name || '商品已失效' }}</template>
+            </el-table-column>
             <el-table-column label="分类" width="100">
-              <template #default="{ row }">{{ row.product.category?.name || '-' }}</template>
+              <template #default="{ row }">{{ row.product?.category?.name || '-' }}</template>
             </el-table-column>
             <el-table-column label="价格" width="100">
-              <template #default="{ row }">¥{{ row.product.price }}</template>
+              <template #default="{ row }">{{ row.product ? `¥${row.product.price}` : '-' }}</template>
             </el-table-column>
             <el-table-column prop="createTime" label="收藏时间" width="180" />
             <el-table-column label="操作" width="120">
@@ -107,7 +118,7 @@
           <el-empty v-if="!reviewLoading && reviews.length === 0" description="暂无评价" />
           <el-table v-else :data="reviews" border stripe>
             <el-table-column label="商品" min-width="150">
-              <template #default="{ row }">{{ row.product.name }}</template>
+              <template #default="{ row }">{{ row.product?.name || '商品已失效' }}</template>
             </el-table-column>
             <el-table-column label="评分" width="100">
               <template #default="{ row }">
@@ -131,14 +142,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Upload } from '@element-plus/icons-vue'
 import { profileApi, favoriteApi, reviewApi, addressApi } from '../api'
-import { role } from '../stores/user'
+import userStore, { role, hasRole } from '../stores/user'
 
 const activeTab = ref('basic')
 const profile = reactive({ id: null, username: '', nickname: '', phone: '', avatar: '', address: '', role: '' })
 const form = reactive({ nickname: '', phone: '', avatar: '', address: '' })
+const uploadHeaders = computed(() => ({
+  Authorization: userStore.token ? `Bearer ${userStore.token}` : ''
+}))
 
 const favorites = ref([])
 const reviews = ref([])
@@ -162,6 +177,10 @@ const loadProfile = async () => {
 }
 
 const loadFavorites = async () => {
+  if (!hasRole('consumer')) {
+    favorites.value = []
+    return
+  }
   favLoading.value = true
   try { favorites.value = await favoriteApi.list() } finally { favLoading.value = false }
 }
@@ -236,7 +255,9 @@ const handleAvatarSuccess = (res) => {
 }
 
 const removeFav = async (row) => {
-  await favoriteApi.toggle(row.product.id)
+  const productId = row.product?.id
+  if (!productId) return ElMessage.warning('商品已失效，无法操作')
+  await favoriteApi.remove(productId)
   ElMessage.success('已取消收藏')
   loadFavorites()
 }

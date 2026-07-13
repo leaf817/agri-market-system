@@ -1,5 +1,5 @@
 <template>
-  <div class="stats-page" @mousemove="onPageMove">
+  <div class="stats-page">
     <!-- 总览卡片 -->
     <el-row :gutter="16" class="overview">
       <el-col :xs="12" :sm="12" :md="6" v-for="card in cards" :key="card.title" class="overview-col">
@@ -146,7 +146,6 @@ const overview = ref({ productCount: 0, orderCount: 0, totalQuantity: 0, totalAm
 const byCategory = ref([])
 const topProducts = ref([])
 const tip = ref(null)
-const pageOffset = ref({ left: 0, top: 0 })
 
 const palette = ['#2e7d32', '#43a047', '#66bb6a', '#fb8c00', '#42a5f5', '#8e24aa']
 
@@ -183,9 +182,12 @@ const pieSlices = computed(() => {
   const cy = 60
   const r = 48
   let angle = -Math.PI / 2
-  return byCategory.value.map((item) => {
+  const items = byCategory.value.filter((i) => (Number(i.quantity) || 0) > 0)
+  return items.map((item) => {
     const value = Number(item.quantity) || 0
-    const sweep = (value / total) * Math.PI * 2
+    let sweep = (value / total) * Math.PI * 2
+    // 整圆时 SVG 弧起止重合画不出，略缩一点
+    if (sweep >= Math.PI * 2 - 1e-6) sweep = Math.PI * 2 - 0.001
     const start = angle
     const end = angle + sweep
     angle = end
@@ -231,31 +233,27 @@ const topTip = (row, idx) => ({
   lines: [`排名：第 ${idx + 1} 名`, `销量：${row.sales}`, `销售额：¥${formatAmount(row.amount)}`]
 })
 
+const tipPos = (e) => {
+  const root = e.currentTarget?.closest?.('.stats-page') || document.querySelector('.stats-page')
+  const rect = root?.getBoundingClientRect?.() || { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+  let x = e.clientX - rect.left + 14
+  let y = e.clientY - rect.top + 14
+  // 避免贴边溢出
+  x = Math.min(x, Math.max(8, rect.width - 180))
+  y = Math.min(y, Math.max(8, rect.height - 90))
+  return { x, y }
+}
+
 const showTip = (e, payload) => {
-  tip.value = {
-    ...payload,
-    x: e.clientX - pageOffset.value.left + 14,
-    y: e.clientY - pageOffset.value.top + 14
-  }
+  tip.value = { ...payload, ...tipPos(e) }
 }
 
 const moveTip = (e) => {
   if (!tip.value) return
-  tip.value = {
-    ...tip.value,
-    x: e.clientX - pageOffset.value.left + 14,
-    y: e.clientY - pageOffset.value.top + 14
-  }
+  tip.value = { ...tip.value, ...tipPos(e) }
 }
 
 const hideTip = () => { tip.value = null }
-
-const onPageMove = (e) => {
-  const el = e.currentTarget
-  if (!el) return
-  const rect = el.getBoundingClientRect()
-  pageOffset.value = { left: rect.left, top: rect.top }
-}
 
 onMounted(async () => {
   const [o, c, t] = await Promise.all([statsApi.overview(), statsApi.byCategory(), statsApi.topProducts(5)])

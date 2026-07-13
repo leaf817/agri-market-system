@@ -6,6 +6,7 @@ const routes = [
   { path: '/login', name: 'login', component: () => import('../views/Login.vue'), meta: { public: true, title: '登录' } },
   { path: '/register', name: 'register', component: () => import('../views/Register.vue'), meta: { public: true, title: '注册' } },
   { path: '/products', name: 'products', component: () => import('../views/Products.vue'), meta: { title: '农产品', roles: ['admin', 'farmer', 'consumer'] } },
+  { path: '/profile', name: 'profile', component: () => import('../views/Profile.vue'), meta: { title: '个人中心', roles: ['admin', 'farmer', 'consumer'] } },
   { path: '/cart', name: 'cart', component: () => import('../views/Cart.vue'), meta: { title: '购物车', roles: ['consumer'] } },
   { path: '/favorites', name: 'favorites', component: () => import('../views/Favorites.vue'), meta: { title: '我的收藏', roles: ['consumer'] } },
   { path: '/categories', name: 'categories', component: () => import('../views/Categories.vue'), meta: { title: '分类管理', roles: ['admin'] } },

@@ -8,7 +8,6 @@
 
   <!-- 管理布局：侧边栏 + 顶栏 + 主内容 -->
   <el-container v-else class="layout">
-    <!-- 侧边栏：Logo + 菜单 -->
     <el-aside width="240px" class="aside">
       <div class="brand">
         <div class="brand-icon">🌾</div>
@@ -18,9 +17,6 @@
         </div>
       </div>
       <el-menu :default-active="$route.path" router class="menu">
-        <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/profile">
-          <el-icon><User /></el-icon><span>个人中心</span>
-        </el-menu-item>
         <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/products">
           <el-icon><Goods /></el-icon><span>{{ role() === 'consumer' ? '农产品' : '农产品管理' }}</span>
         </el-menu-item>
@@ -42,11 +38,13 @@
         <el-menu-item v-if="hasRole('admin', 'farmer')" index="/statistics">
           <el-icon><DataAnalysis /></el-icon><span>销量统计</span>
         </el-menu-item>
+        <el-menu-item v-if="hasRole('admin', 'farmer', 'consumer')" index="/profile">
+          <el-icon><User /></el-icon><span>个人中心</span>
+        </el-menu-item>
       </el-menu>
       <div class="aside-footer">© {{ year }} 乡村助农</div>
     </el-aside>
 
-    <!-- 右侧：顶栏 + 主内容 -->
     <el-container>
       <el-header class="header">
         <div class="page-title">{{ pageTitle }}</div>
@@ -60,7 +58,8 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="logout" :icon="SwitchButton">退出登录</el-dropdown-item>
+                <el-dropdown-item command="profile" :icon="User">个人中心</el-dropdown-item>
+                <el-dropdown-item command="logout" :icon="SwitchButton" divided>退出登录</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -78,12 +77,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { SwitchButton, ShoppingCart, Star, User, Goods, Location, List, DataAnalysis, Menu } from '@element-plus/icons-vue'
-import userStore, { role, hasRole, clearSession, isLogin } from './stores/user'
-import { authApi, cartApi } from './api'
+import { SwitchButton, User } from '@element-plus/icons-vue'
+import userStore, { role, hasRole, clearSession } from './stores/user'
+import { authApi } from './api'
 
 const route = useRoute()
 const router = useRouter()
@@ -100,35 +99,23 @@ const roleLabel = computed(() => roleLabelMap[role()] || '游客')
 const roleTagType = computed(() => roleTypeMap[role()] || 'info')
 const avatarText = computed(() => (user.value?.nickname || user.value?.username || '?').slice(0, 1))
 
-const cartCount = ref(0)
-
-const loadCartCount = async () => {
-  if (isLogin() && hasRole('consumer')) {
-    try { cartCount.value = await cartApi.count() } catch (e) { cartCount.value = 0 }
-  } else {
-    cartCount.value = 0
-  }
-}
-
 const onCommand = async (cmd) => {
+  if (cmd === 'profile') {
+    router.push('/profile')
+    return
+  }
   if (cmd === 'logout') {
     try { await authApi.logout() } catch (e) { /* 忽略网络错误，本地仍清理 */ }
     clearSession()
-    cartCount.value = 0
     ElMessage.success('已退出登录')
     router.push('/login')
-  } else if (cmd === 'profile') {
-    router.push('/profile')
   }
 }
-
-onMounted(loadCartCount)
 </script>
 
 <style>
 .layout { height: 100%; }
 
-/* 侧边栏 */
 .aside {
   background: #fff;
   border-right: 1px solid #eef0ee;
@@ -171,9 +158,7 @@ onMounted(loadCartCount)
   border-right: 3px solid var(--brand);
 }
 .aside-footer { padding: 14px; text-align: center; font-size: 12px; color: #aab4c0; border-top: 1px solid #f3f5f3; }
-.cart-badge { position: absolute; top: 8px; right: 12px; }
 
-/* 顶栏 */
 .header {
   height: 58px;
   display: flex;
@@ -189,10 +174,8 @@ onMounted(loadCartCount)
 .uname { font-size: 13px; color: #1f2d3d; font-weight: 600; }
 .avatar { background: var(--brand); color: #fff; font-weight: 600; }
 
-/* 主内容 */
 .main { background: var(--bg-page); padding: 20px; }
 
-/* 路由切换过渡 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
