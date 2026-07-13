@@ -17,6 +17,12 @@ public class GlobalExceptionHandler {
         return ApiResponse.fail(e.getMessage());
     }
 
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(IllegalStateException.class)
+    public ApiResponse<Void> handleIllegalState(IllegalStateException e) {
+        return ApiResponse.fail(e.getMessage());
+    }
+
     @ResponseStatus(HttpStatus.NOT_FOUND)
     @ExceptionHandler(EntityNotFoundException.class)
     public ApiResponse<Void> handleNotFound(EntityNotFoundException e) {

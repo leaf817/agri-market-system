@@ -182,7 +182,9 @@ const openReview = (item) => {
 
 const submitReview = async () => {
   if (!reviewForm.content.trim()) return ElMessage.warning('请填写评价内容')
-  await reviewApi.create(reviewingItem.value.product.id, reviewForm.rating, reviewForm.content)
+  const productId = reviewingItem.value?.product?.id
+  if (!productId) return ElMessage.error('无法评价：商品信息缺失')
+  await reviewApi.create(productId, reviewForm.rating, reviewForm.content)
   ElMessage.success('评价成功')
   reviewingItem.value.reviewed = true
   reviewVisible.value = false

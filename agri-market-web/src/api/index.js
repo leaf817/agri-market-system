@@ -52,3 +52,26 @@ export const favoriteApi = {
   remove: (productId) => request.delete(`/favorites/${productId}`),
   toggle: (productId) => request.post(`/favorites/toggle/${productId}`)
 }
+
+export const profileApi = {
+  get: () => request.get('/profile'),
+  update: (data) => request.put('/profile', data)
+}
+
+export const reviewApi = {
+  list: (params) => request.get('/reviews', { params }),
+  stats: (productId) => request.get(`/reviews/product/${productId}/stats`),
+  create: (productId, rating, content) =>
+    request.post('/reviews', null, { params: { productId, rating, content } }),
+  remove: (id) => request.delete(`/reviews/${id}`)
+}
+
+/** 地址接口后端为 @RequestParam，用 query 传参 */
+export const addressApi = {
+  list: () => request.get('/addresses'),
+  getDefault: () => request.get('/addresses/default'),
+  create: (data) => request.post('/addresses', null, { params: data }),
+  update: (id, data) => request.put(`/addresses/${id}`, null, { params: data }),
+  remove: (id) => request.delete(`/addresses/${id}`),
+  setDefault: (id) => request.patch(`/addresses/${id}/default`)
+}

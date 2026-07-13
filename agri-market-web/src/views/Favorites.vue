@@ -78,8 +78,10 @@ const addCart = async (item) => {
 }
 
 const unfavorite = async (item) => {
+  const productId = item.product?.id
+  if (!productId) return ElMessage.warning('商品已失效')
   await ElMessageBox.confirm(`取消收藏「${item.product?.name || '该商品'}」？`, '提示', { type: 'warning' })
-  await favoriteApi.remove(item.product.id)
+  await favoriteApi.remove(productId)
   ElMessage.success('已取消收藏')
   load()
 }

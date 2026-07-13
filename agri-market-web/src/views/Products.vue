@@ -111,16 +111,13 @@
               <el-button type="primary" :disabled="p.stock <= 0" @click="openBuy(p)">
                 {{ p.stock > 0 ? '立即购买' : '暂无库存' }}
               </el-button>
-              <el-button :icon="Star" :type="isFav(p.id) ? 'warning' : 'default'" @click="toggleFav(p)">
-                {{ isFav(p.id) ? '已收藏' : '收藏' }}
-              </el-button>
-              <el-button :icon="ChatDotRound" @click="openReviews(p)">查看评价</el-button>
+              <el-button :icon="ChatDotRound" @click="openReviews(p)">评价</el-button>
             </div>
-            <div class="review-info">
-              <span class="rating" @click="openReviews(p)">
-                <el-icon v-for="i in 5" :key="i" :color="i <= getRating(p.id) ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
+            <div class="review-info" @click="openReviews(p)">
+              <span class="rating">
+                <el-icon v-for="i in 5" :key="i" :color="i <= Math.round(getRating(p.id)) ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
               </span>
-              <span class="review-count" @click="openReviews(p)">{{ getReviewCount(p.id) }} 条评价</span>
+              <span class="review-count">{{ getReviewCount(p.id) }} 条评价</span>
             </div>
           </el-card>
         </el-col>
@@ -148,7 +145,16 @@
           <div class="cover-uploader">
             <el-image v-if="form.cover" :src="form.cover" fit="cover" class="cover-preview" />
             <div class="cover-actions">
-              <el-upload action="/api/upload" accept="image/*" :show-file-list="false" :before-upload="beforeCoverUpload" :on-success="handleCoverSuccess">
+              <el-upload
+                action="/api/upload"
+                name="file"
+                accept="image/*"
+                :show-file-list="false"
+                :headers="uploadHeaders"
+                :before-upload="beforeCoverUpload"
+                :on-success="handleCoverSuccess"
+                :on-error="handleCoverError"
+              >
                 <el-button :icon="Upload">{{ form.cover ? '更换图片' : '上传图片' }}</el-button>
               </el-upload>
               <el-button v-if="form.cover" text type="danger" @click="form.cover = ''">移除图片</el-button>
@@ -191,29 +197,27 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="reviewVisible" :title="`${currentProduct?.name} - 商品评价`" width="620px">
+    <el-dialog v-model="reviewVisible" :title="`${currentProduct?.name || ''} - 商品评价`" width="620px">
       <div v-if="currentProduct" class="review-header">
         <div class="review-rating">
-          <el-icon v-for="i in 5" :key="i" :color="i <= getRating(currentProduct.id) ? '#ffb300' : '#e0e0e0'" size="24"><Star /></el-icon>
-          <span>{{ getRating(currentProduct.id) }}.0 分</span>
+          <el-icon v-for="i in 5" :key="i" :color="i <= Math.round(getRating(currentProduct.id)) ? '#ffb300' : '#e0e0e0'" size="24"><Star /></el-icon>
+          <span>{{ getRating(currentProduct.id).toFixed(1) }} 分</span>
         </div>
         <span class="review-count">{{ getReviewCount(currentProduct.id) }} 条评价</span>
       </div>
-
       <div v-if="currentReviews.length > 0" class="review-list">
-        <h4>评价列表</h4>
         <div v-for="r in currentReviews" :key="r.id" class="review-item">
           <div class="review-item-header">
-            <span class="reviewer">{{ r.userId }}</span>
+            <span class="reviewer">用户 #{{ r.userId }}</span>
             <div class="review-item-rating">
               <el-icon v-for="i in 5" :key="i" :color="i <= r.rating ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
             </div>
             <span class="review-time">{{ r.createTime }}</span>
           </div>
-          <div class="review-content">{{ r.content }}</div>
+          <div class="review-content">{{ r.content || '（无文字评价）' }}</div>
         </div>
       </div>
-      <el-empty v-else description="暂无评价，请先购买该商品后再评价" />
+      <el-empty v-else description="暂无评价" />
     </el-dialog>
   </div>
 </template>
@@ -221,21 +225,29 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
-import { productApi, categoryApi, originApi, orderApi, cartApi, favoriteApi } from '../api'
+import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled, ChatDotRound } from '@element-plus/icons-vue'
+import { productApi, categoryApi, originApi, orderApi, cartApi, favoriteApi, reviewApi } from '../api'
 import userStore, { role, hasRole } from '../stores/user'
 
 const isManager = computed(() => hasRole('admin', 'farmer'))
 const isConsumer = computed(() => role() === 'consumer')
+const uploadHeaders = computed(() => ({
+  Authorization: userStore.token ? `Bearer ${userStore.token}` : ''
+}))
 
 const products = ref([])
 const categories = ref([])
 const origins = ref([])
 const favoriteIds = ref(new Set())
+const reviewStats = ref({})
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
 const formRef = ref()
+
+const reviewVisible = ref(false)
+const currentProduct = ref(null)
+const currentReviews = ref([])
 
 const filters = reactive({ categoryId: null, status: null, keyword: '' })
 const form = reactive({ name: '', categoryId: null, originId: null, price: 0, stock: 0, unit: '', cover: '', description: '', status: 1 })
@@ -251,7 +263,47 @@ const buyTotal = computed(() => (buy.product ? (Number(buy.product.price) * buy.
 
 const loadProducts = async () => {
   loading.value = true
-  try { products.value = await productApi.list(filters) } finally { loading.value = false }
+  try {
+    products.value = await productApi.list(filters)
+    await loadReviewStats(products.value)
+  } finally {
+    loading.value = false
+  }
+}
+const loadReviewStats = async (list) => {
+  const next = { ...reviewStats.value }
+  await Promise.all((list || []).map(async (p) => {
+    try {
+      const stats = await reviewApi.stats(p.id)
+      next[p.id] = {
+        count: Number(stats?.count) || 0,
+        avgRating: Number(stats?.avgRating) || 0
+      }
+    } catch (e) {
+      next[p.id] = { count: 0, avgRating: 0 }
+    }
+  }))
+  reviewStats.value = next
+}
+const getRating = (productId) => Number(reviewStats.value[productId]?.avgRating) || 0
+const getReviewCount = (productId) => Number(reviewStats.value[productId]?.count) || 0
+const openReviews = async (p) => {
+  currentProduct.value = p
+  currentReviews.value = []
+  reviewVisible.value = true
+  try {
+    currentReviews.value = await reviewApi.list({ productId: p.id })
+    const stats = await reviewApi.stats(p.id)
+    reviewStats.value = {
+      ...reviewStats.value,
+      [p.id]: {
+        count: Number(stats?.count) || 0,
+        avgRating: Number(stats?.avgRating) || 0
+      }
+    }
+  } catch (e) {
+    currentReviews.value = []
+  }
 }
 const loadFavorites = async () => {
   if (!isConsumer.value) return
@@ -327,8 +379,15 @@ const beforeCoverUpload = (file) => {
   return isImage && isLt5M
 }
 const handleCoverSuccess = (res) => {
-  if (res && res.code === 0) { form.cover = res.data.url; ElMessage.success('图片上传成功') }
-  else { ElMessage.error((res && res.message) || '图片上传失败') }
+  if (res && res.code === 0 && res.data?.url) {
+    form.cover = res.data.url
+    ElMessage.success('图片上传成功')
+  } else {
+    ElMessage.error((res && res.message) || '图片上传失败')
+  }
+}
+const handleCoverError = () => {
+  ElMessage.error('图片上传失败，请确认已登录')
 }
 
 const openBuy = (p) => {
