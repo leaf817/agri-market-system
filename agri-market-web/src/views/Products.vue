@@ -50,6 +50,18 @@
         </el-table-column>
         <el-table-column prop="stock" label="库存" width="80" align="center" />
         <el-table-column prop="sales" label="销量" width="80" align="center" />
+        <el-table-column label="评价" width="150" align="center">
+          <template #default="{ row }">
+            <div class="mgr-review-cell">
+              <span class="mgr-stars">
+                <el-icon v-for="i in 5" :key="i" :size="12" :color="i <= Math.round(getRating(row.id)) ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
+              </span>
+              <el-button link type="primary" @click="openReviews(row)">
+                {{ getReviewCount(row.id) }} 条评价
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">{{ row.status === 1 ? '上架' : '下架' }}</el-tag>
@@ -498,6 +510,14 @@ onMounted(() => { loadOptions(); loadProducts(); loadFavorites() })
 .thumb { width: 60px; height: 45px; border-radius: 6px; display: block; }
 .thumb-empty { width: 60px; height: 45px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #eef5ee, #d7e9d8); font-size: 22px; }
 .unit { color: #8a97a0; }
+.mgr-review-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.2;
+}
+.mgr-stars { display: inline-flex; }
 
 /* 消费者卡片 */
 .grid-wrap { min-height: 200px; }
