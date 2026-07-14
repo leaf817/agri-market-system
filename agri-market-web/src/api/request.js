@@ -34,11 +34,14 @@ request.interceptors.response.use(
     const msg = error.response?.data?.message
     if (status === 401) {
       clearSession()
-      if (router.currentRoute.value.path !== '/login') {
+      const path = router.currentRoute.value.path
+      const isPublic = !!router.currentRoute.value.meta?.public
+      if (path !== '/login' && !isPublic) {
+        // silentError 只抑制 toast，登录失效仍需离开鉴权页
         if (!error.config?.silentError) {
           ElMessage.error(msg || '登录已过期，请重新登录')
         }
-        router.push('/login')
+        router.replace('/login')
       }
     } else if (!error.config?.silentError) {
       ElMessage.error(msg || error.message || '网络异常')

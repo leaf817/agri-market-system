@@ -1,19 +1,30 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { isLogin, hasRole } from '../stores/user'
+import { isLogin, hasRole, role, clearSession } from '../stores/user'
+// 同步引入，避免 Vite 热更新后异步 chunk 失效导致主内容区空白
+import Login from '../views/Login.vue'
+import Register from '../views/Register.vue'
+import Products from '../views/Products.vue'
+import Profile from '../views/Profile.vue'
+import Cart from '../views/Cart.vue'
+import Favorites from '../views/Favorites.vue'
+import Categories from '../views/Categories.vue'
+import Origins from '../views/Origins.vue'
+import Orders from '../views/Orders.vue'
+import Statistics from '../views/Statistics.vue'
 
 const routes = [
-  { path: '/', redirect: '/products' },
-  { path: '/login', name: 'login', component: () => import('../views/Login.vue'), meta: { public: true, title: '登录' } },
-  { path: '/register', name: 'register', component: () => import('../views/Register.vue'), meta: { public: true, title: '注册' } },
-  { path: '/products', name: 'products', component: () => import('../views/Products.vue'), meta: { title: '农产品', roles: ['admin', 'farmer', 'consumer'] } },
-  { path: '/profile', name: 'profile', component: () => import('../views/Profile.vue'), meta: { title: '个人中心', roles: ['admin', 'farmer', 'consumer'] } },
-  { path: '/cart', name: 'cart', component: () => import('../views/Cart.vue'), meta: { title: '购物车', roles: ['consumer'] } },
-  { path: '/favorites', name: 'favorites', component: () => import('../views/Favorites.vue'), meta: { title: '我的收藏', roles: ['consumer'] } },
-  { path: '/categories', name: 'categories', component: () => import('../views/Categories.vue'), meta: { title: '分类管理', roles: ['admin'] } },
-  { path: '/origins', name: 'origins', component: () => import('../views/Origins.vue'), meta: { title: '产地公示', roles: ['admin'] } },
-  { path: '/orders', name: 'orders', component: () => import('../views/Orders.vue'), meta: { title: '订单', roles: ['admin', 'farmer', 'consumer'] } },
-  { path: '/statistics', name: 'statistics', component: () => import('../views/Statistics.vue'), meta: { title: '销量统计', roles: ['admin', 'farmer'] } },
-  { path: '/:pathMatch(.*)*', redirect: '/products' }
+  { path: '/', redirect: '/login' },
+  { path: '/login', name: 'login', component: Login, meta: { public: true, title: '登录' } },
+  { path: '/register', name: 'register', component: Register, meta: { public: true, title: '注册' } },
+  { path: '/products', name: 'products', component: Products, meta: { title: '农产品', roles: ['admin', 'farmer', 'consumer'] } },
+  { path: '/profile', name: 'profile', component: Profile, meta: { title: '个人中心', roles: ['admin', 'farmer', 'consumer'] } },
+  { path: '/cart', name: 'cart', component: Cart, meta: { title: '购物车', roles: ['consumer'] } },
+  { path: '/favorites', name: 'favorites', component: Favorites, meta: { title: '我的收藏', roles: ['consumer'] } },
+  { path: '/categories', name: 'categories', component: Categories, meta: { title: '分类管理', roles: ['admin'] } },
+  { path: '/origins', name: 'origins', component: Origins, meta: { title: '产地公示', roles: ['admin'] } },
+  { path: '/orders', name: 'orders', component: Orders, meta: { title: '订单', roles: ['admin', 'farmer', 'consumer'] } },
+  { path: '/statistics', name: 'statistics', component: Statistics, meta: { title: '销量统计', roles: ['admin', 'farmer'] } },
+  { path: '/:pathMatch(.*)*', redirect: '/login' }
 ]
 
 const router = createRouter({
@@ -30,7 +41,13 @@ router.beforeEach((to) => {
   if (!isLogin()) return { path: '/login' }
   const roles = to.meta.roles
   if (roles && !hasRole(...roles)) {
-    // 角色不符：回到首页（前端拦截，后端仍会二次校验）
+    // 有 token 但无有效角色：清会话，避免死循环
+    if (!role()) {
+      clearSession()
+      return { path: '/login' }
+    }
+    // 角色不符：回到首页（勿对 /products 自身再 redirect）
+    if (to.path === '/products') return { path: '/profile' }
     return { path: '/products' }
   }
   return true

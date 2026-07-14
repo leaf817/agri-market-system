@@ -39,9 +39,17 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ApiResponse<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = "X-Token", required = false) String xToken) {
+        String token = null;
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            authService.logout(authorization.substring(7).trim());
+            token = authorization.substring(7).trim();
+        } else if (xToken != null && !xToken.isBlank()) {
+            token = xToken.trim();
+        }
+        if (token != null && !token.isBlank()) {
+            authService.logout(token);
         }
         return ApiResponse.ok();
     }

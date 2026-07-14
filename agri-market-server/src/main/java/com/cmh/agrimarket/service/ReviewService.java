@@ -41,13 +41,17 @@ public class ReviewService {
     public Review create(Long userId, Long productId, Integer rating, String content) {
         Product product = productRepo.findById(productId)
                 .orElseThrow(() -> new EntityNotFoundException("商品不存在: " + productId));
-        if (rating < 1 || rating > 5) {
+        if (rating == null || rating < 1 || rating > 5) {
             throw new IllegalArgumentException("评分必须在1-5之间");
+        }
+        if (repo.existsByUserIdAndProductId(userId, productId)) {
+            throw new IllegalStateException("您已评价过该商品");
         }
 
         boolean hasCompletedOrder = orderRepo.findByCustomerId(userId).stream()
                 .anyMatch(order -> order.getStatus() == OrderStatus.COMPLETED
-                        && order.getItems().stream().anyMatch(item -> item.getProduct().getId().equals(productId)));
+                        && order.getItems().stream().anyMatch(item ->
+                        item.getProduct() != null && productId.equals(item.getProduct().getId())));
 
         if (!hasCompletedOrder) {
             throw new IllegalStateException("只有完成订单后才能评价该商品");

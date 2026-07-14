@@ -1,9 +1,7 @@
 <template>
   <!-- 登录/注册等公开页：裸渲染，不显示管理布局 -->
   <router-view v-if="isPublic" v-slot="{ Component }">
-    <transition name="fade" mode="out-in">
-      <component :is="Component" />
-    </transition>
+    <component :is="Component" v-if="Component" :key="route.fullPath" />
   </router-view>
 
   <!-- 管理布局：侧边栏 + 顶栏 + 主内容 -->
@@ -67,9 +65,7 @@
       </el-header>
       <el-main class="main">
         <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
+          <component :is="Component" v-if="Component" :key="route.fullPath" />
         </router-view>
       </el-main>
     </el-container>
@@ -177,8 +173,6 @@ const onCommand = async (cmd) => {
 .uname { font-size: 13px; color: #1f2d3d; font-weight: 600; }
 .avatar { background: var(--brand); color: #fff; font-weight: 600; }
 
-.main { background: var(--bg-page); padding: 20px; }
-
-.fade-enter-active, .fade-leave-active { transition: opacity 0.18s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.layout > .el-container { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.main { background: var(--bg-page); padding: 20px; overflow: auto; flex: 1; }
 </style>

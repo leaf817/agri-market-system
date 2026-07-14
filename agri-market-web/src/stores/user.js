@@ -2,7 +2,15 @@ import { reactive } from 'vue'
 
 const KEY = 'agri_market_session'
 
-function load() {
+function normalizeUser(user) {
+  if (!user) return null
+  return {
+    ...user,
+    role: user.role ? String(user.role).toLowerCase() : ''
+  }
+}
+
+function loadRaw() {
   try {
     return JSON.parse(localStorage.getItem(KEY))
   } catch (e) {
@@ -10,12 +18,12 @@ function load() {
   }
 }
 
-const saved = load()
+const raw = loadRaw()
 
-/** 全局会话状态：token + 当前用户信息（含 role: admin/farmer/consumer） */
+/** 全局会话状态：token + 当前用户信息（role 统一小写：admin/farmer/consumer） */
 const state = reactive({
-  token: saved?.token || '',
-  user: saved?.user || null
+  token: raw?.token || '',
+  user: normalizeUser(raw?.user)
 })
 
 function persist() {
@@ -24,7 +32,7 @@ function persist() {
 
 export function setSession(token, user) {
   state.token = token
-  state.user = user
+  state.user = normalizeUser(user)
   persist()
 }
 
@@ -35,16 +43,17 @@ export function clearSession() {
 }
 
 export function isLogin() {
-  return !!state.token
+  return !!(state.token && state.user?.role)
 }
 
 export function role() {
-  return state.user?.role || ''
+  return (state.user?.role || '').toLowerCase()
 }
 
-/** 当前角色是否在传入角色列表中（角色名为小写） */
+/** 当前角色是否在传入角色列表中（大小写不敏感） */
 export function hasRole(...roles) {
-  return roles.includes(role())
+  const current = role()
+  return roles.some((r) => String(r).toLowerCase() === current)
 }
 
 export function useUserStore() {

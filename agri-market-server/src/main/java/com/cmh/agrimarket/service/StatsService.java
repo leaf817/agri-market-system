@@ -3,6 +3,7 @@ package com.cmh.agrimarket.service;
 import com.cmh.agrimarket.dto.CategorySales;
 import com.cmh.agrimarket.dto.StatsOverview;
 import com.cmh.agrimarket.dto.TopProduct;
+import com.cmh.agrimarket.entity.OrderStatus;
 import com.cmh.agrimarket.entity.Product;
 import com.cmh.agrimarket.repository.OrderItemRepository;
 import com.cmh.agrimarket.repository.OrderRepository;
@@ -26,7 +27,7 @@ public class StatsService {
         List<Product> products = productsOf(farmerId);
         long totalQuantity = products.stream().mapToLong(p -> p.getSales() == null ? 0 : p.getSales()).sum();
         BigDecimal totalAmount = products.stream()
-                .map(p -> p.getPrice().multiply(BigDecimal.valueOf(p.getSales() == null ? 0 : p.getSales())))
+                .map(p -> priceOf(p).multiply(BigDecimal.valueOf(p.getSales() == null ? 0 : p.getSales())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         long orderCount = countOrders(farmerId);
         return new StatsOverview(products.size(), orderCount, totalQuantity, totalAmount);
@@ -41,7 +42,7 @@ public class StatsService {
             Long cid = p.getCategory() == null ? null : p.getCategory().getId();
             int sales = p.getSales() == null ? 0 : p.getSales();
             qtyMap.computeIfAbsent(name, k -> new long[]{0})[0] += sales;
-            amountMap.merge(name, p.getPrice().multiply(BigDecimal.valueOf(sales)), BigDecimal::add);
+            amountMap.merge(name, priceOf(p).multiply(BigDecimal.valueOf(sales)), BigDecimal::add);
             idMap.put(name, cid);
         }
         return qtyMap.keySet().stream()
@@ -55,9 +56,16 @@ public class StatsService {
         return productsOf(farmerId).stream()
                 .sorted(Comparator.comparingInt((Product p) -> p.getSales() == null ? 0 : p.getSales()).reversed())
                 .limit(limit)
-                .map(p -> new TopProduct(p.getId(), p.getName(), p.getSales(),
-                        p.getPrice().multiply(BigDecimal.valueOf(p.getSales() == null ? 0 : p.getSales()))))
+                .map(p -> {
+                    int sales = p.getSales() == null ? 0 : p.getSales();
+                    return new TopProduct(p.getId(), p.getName(), sales,
+                            priceOf(p).multiply(BigDecimal.valueOf(sales)));
+                })
                 .collect(Collectors.toList());
+    }
+
+    private static BigDecimal priceOf(Product p) {
+        return p.getPrice() == null ? BigDecimal.ZERO : p.getPrice();
     }
 
     private List<Product> productsOf(Long farmerId) {
@@ -66,13 +74,19 @@ public class StatsService {
 
     private long countOrders(Long farmerId) {
         if (farmerId == null) {
-            return orderRepo.count();
+            return orderRepo.countByStatusNot(OrderStatus.CANCELLED);
         }
         List<Long> myProductIds = productRepo.findByFarmerId(farmerId).stream()
                 .map(Product::getId).toList();
         if (myProductIds.isEmpty()) {
             return 0;
         }
-        return orderItemRepo.findDistinctOrderIdByProductIdIn(myProductIds).size();
+        List<Long> orderIds = orderItemRepo.findDistinctOrderIdByProductIdIn(myProductIds);
+        if (orderIds.isEmpty()) {
+            return 0;
+        }
+        return orderRepo.findByIdIn(orderIds).stream()
+                .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
+                .count();
     }
 }

@@ -84,10 +84,31 @@
     </el-card>
 
     <el-dialog v-model="checkoutVisible" title="确认结算" width="480px">
-      <el-form label-width="90px">
-        <el-form-item label="收货人"><el-input v-model="buyer.name" placeholder="请填写收货人" /></el-form-item>
-        <el-form-item label="电话"><el-input v-model="buyer.phone" placeholder="请填写联系电话" /></el-form-item>
-        <el-form-item label="地址"><el-input v-model="buyer.address" placeholder="请填写收货地址" /></el-form-item>
+      <el-form label-width="90px" v-loading="addressLoading">
+        <el-form-item label="收货地址">
+          <el-select
+            v-if="addresses.length"
+            :model-value="selectedAddressId"
+            placeholder="选择个人中心已保存的地址"
+            style="width: 100%"
+            @change="(id) => onSelectAddress(id, buyer)"
+          >
+            <el-option
+              v-for="a in addresses"
+              :key="a.id"
+              :label="formatLabel(a)"
+              :value="a.id"
+            />
+          </el-select>
+          <div v-else class="addr-empty-tip">
+            暂无收货地址，请先到
+            <el-button type="primary" link @click="goProfileAddress">个人中心</el-button>
+            添加
+          </div>
+        </el-form-item>
+        <el-form-item label="收货人"><el-input v-model="buyer.name" placeholder="可修改" /></el-form-item>
+        <el-form-item label="电话"><el-input v-model="buyer.phone" placeholder="可修改" /></el-form-item>
+        <el-form-item label="地址"><el-input v-model="buyer.address" type="textarea" :rows="2" placeholder="可修改" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="buyer.remark" /></el-form-item>
         <el-form-item label="合计"><b class="amount">¥{{ selectedTotal }}</b></el-form-item>
       </el-form>
@@ -104,9 +125,18 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cartApi } from '../api'
-import userStore from '../stores/user'
+import { useBuyerAddress } from '../composables/useBuyerAddress'
 
 const router = useRouter()
+const {
+  addresses,
+  selectedAddressId,
+  addressLoading,
+  formatLabel,
+  loadAndPrefill,
+  onSelectAddress
+} = useBuyerAddress()
+
 const loading = ref(false)
 const submitting = ref(false)
 const list = ref([])
@@ -159,17 +189,25 @@ const clearAll = async () => {
   load()
 }
 
-const openCheckout = () => {
+const goProfileAddress = () => {
+  checkoutVisible.value = false
+  router.push({ path: '/profile', query: { tab: 'address' } })
+}
+
+const openCheckout = async () => {
   if (!selected.value.length) return ElMessage.warning('请先勾选要结算的商品')
-  buyer.name = userStore.user?.nickname || ''
+  buyer.remark = ''
+  buyer.name = ''
   buyer.phone = ''
   buyer.address = ''
-  buyer.remark = ''
   checkoutVisible.value = true
+  await loadAndPrefill(buyer)
 }
 
 const submitCheckout = async () => {
   if (!buyer.name) return ElMessage.warning('请填写收货人')
+  if (!buyer.phone) return ElMessage.warning('请填写联系电话')
+  if (!buyer.address) return ElMessage.warning('请填写收货地址')
   submitting.value = true
   try {
     await cartApi.checkout({
@@ -179,7 +217,7 @@ const submitCheckout = async () => {
       buyerAddress: buyer.address,
       remark: buyer.remark
     })
-    ElMessage.success('下单成功')
+    ElMessage.success('下单成功，请到「我的订单」完成支付')
     checkoutVisible.value = false
     await load()
     router.push('/orders')
@@ -214,4 +252,5 @@ onMounted(load)
   display: flex; justify-content: flex-end; align-items: center; gap: 16px;
   padding-top: 12px; border-top: 1px solid #eef2ee;
 }
+.addr-empty-tip { font-size: 13px; color: #8a97a0; line-height: 1.6; }
 </style>

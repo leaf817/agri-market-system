@@ -27,13 +27,17 @@ export const orderApi = {
   list: () => request.get('/orders'),
   get: (id) => request.get(`/orders/${id}`),
   create: (data) => request.post('/orders', data),
-  changeStatus: (id, status) => request.patch(`/orders/${id}/status`, null, { params: { status } })
+  update: (id, data) => request.put(`/orders/${id}`, data),
+  remove: (id) => request.delete(`/orders/${id}`),
+  changeStatus: (id, status) => request.patch(`/orders/${id}/status`, null, { params: { status } }),
+  pay: (id) => request.post(`/orders/${id}/pay`),
+  cancel: (id) => request.post(`/orders/${id}/cancel`)
 }
 
 export const statsApi = {
-  overview: () => request.get('/stats/overview'),
-  byCategory: () => request.get('/stats/by-category'),
-  topProducts: (limit = 5) => request.get('/stats/top-products', { params: { limit } })
+  overview: (config) => request.get('/stats/overview', config),
+  byCategory: (config) => request.get('/stats/by-category', config),
+  topProducts: (limit = 5, config) => request.get('/stats/top-products', { params: { limit }, ...config })
 }
 
 export const cartApi = {

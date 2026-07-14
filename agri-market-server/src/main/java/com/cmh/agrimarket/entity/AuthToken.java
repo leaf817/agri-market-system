@@ -1,6 +1,5 @@
 package com.cmh.agrimarket.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,36 +9,31 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * 登录 Token 持久化：业务数据在 MySQL，重启后端不丢订单等；
+ * Token 也落库，重新登录前仍可校验。
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "review")
-public class Review {
+@Table(name = "auth_token")
+public class AuthToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, length = 64, unique = true)
+    private String token;
+
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_item_id")
-    private OrderItem orderItem;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "product_id", nullable = false)
-    private Product product;
-
-    @Column(nullable = false)
-    private Integer rating;
-
-    @Column(length = 1000)
-    private String content;
-
     @CreationTimestamp
-    @Column(updatable = false)
+    @Column(name = "create_time", updatable = false)
     private LocalDateTime createTime;
+
+    @Column(name = "expire_time")
+    private LocalDateTime expireTime;
 }

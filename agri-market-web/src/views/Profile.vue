@@ -72,7 +72,7 @@
         </el-form>
       </el-tab-pane>
 
-      <el-tab-pane label="我的收藏" name="fav">
+      <el-tab-pane v-if="hasRole('consumer')" label="我的收藏" name="fav">
         <div v-loading="favLoading">
           <el-empty v-if="!favLoading && favorites.length === 0" description="暂无收藏" />
           <el-table v-else :data="favorites" border stripe>
@@ -101,7 +101,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="收货地址" name="address">
+      <el-tab-pane v-if="hasRole('consumer')" label="收货地址" name="address">
         <div class="address-list">
           <div v-for="addr in addresses" :key="addr.id" class="address-card" :class="{ 'is-default': addr.isDefault }">
             <div class="address-header">
@@ -121,7 +121,7 @@
         <el-button type="primary" :icon="Plus" style="margin-top: 16px" @click="openAddrForm">添加收货地址</el-button>
       </el-tab-pane>
 
-      <el-tab-pane label="我的评价" name="review">
+      <el-tab-pane v-if="hasRole('consumer')" label="我的评价" name="review">
         <div v-loading="reviewLoading">
           <el-empty v-if="!reviewLoading && reviews.length === 0" description="暂无评价" />
           <el-table v-else :data="reviews" border stripe>
@@ -166,11 +166,13 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Lock, Plus, Star, Upload } from '@element-plus/icons-vue'
 import { profileApi, favoriteApi, reviewApi, addressApi } from '../api'
-import userStore, { role, hasRole } from '../stores/user'
+import userStore, { role, hasRole, setSession } from '../stores/user'
 
+const route = useRoute()
 const activeTab = ref('basic')
 const profile = reactive({ id: null, username: '', nickname: '', phone: '', avatar: '', address: '', role: '' })
 const form = reactive({ nickname: '', phone: '', avatar: '', address: '' })
@@ -233,11 +235,19 @@ const loadFavorites = async () => {
 }
 
 const loadReviews = async () => {
+  if (!hasRole('consumer')) {
+    reviews.value = []
+    return
+  }
   reviewLoading.value = true
   try { reviews.value = await reviewApi.list() } finally { reviewLoading.value = false }
 }
 
 const loadAddresses = async () => {
+  if (!hasRole('consumer')) {
+    addresses.value = []
+    return
+  }
   addresses.value = await addressApi.list()
 }
 
@@ -286,6 +296,16 @@ const saveProfile = async () => {
   await profileApi.update(form)
   ElMessage.success('保存成功')
   await loadProfile()
+  // 同步顶栏昵称/头像
+  if (userStore.token) {
+    setSession(userStore.token, {
+      ...userStore.user,
+      nickname: form.nickname,
+      phone: form.phone,
+      avatar: form.avatar,
+      address: form.address
+    })
+  }
 }
 
 const changePassword = async () => {
@@ -333,6 +353,15 @@ const removeReview = async (row) => {
 }
 
 onMounted(() => {
+  const tab = route.query.tab
+  const consumerTabs = ['fav', 'address', 'review']
+  if (typeof tab === 'string' && ['basic', 'password', 'fav', 'address', 'review'].includes(tab)) {
+    if (consumerTabs.includes(tab) && !hasRole('consumer')) {
+      activeTab.value = 'basic'
+    } else {
+      activeTab.value = tab
+    }
+  }
   loadProfile()
   loadFavorites()
   loadReviews()

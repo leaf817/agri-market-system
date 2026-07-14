@@ -3,7 +3,9 @@ package com.cmh.agrimarket.controller;
 import com.cmh.agrimarket.common.ApiResponse;
 import com.cmh.agrimarket.common.CurrentUser;
 import com.cmh.agrimarket.common.CurrentUserHolder;
+import com.cmh.agrimarket.common.RequireRole;
 import com.cmh.agrimarket.entity.Review;
+import com.cmh.agrimarket.entity.Role;
 import com.cmh.agrimarket.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +40,7 @@ public class ReviewController {
         return ApiResponse.ok(stats);
     }
 
+    @RequireRole(Role.CONSUMER)
     @PostMapping
     public ApiResponse<Review> create(@RequestParam Long productId,
                                       @RequestParam Integer rating,

@@ -71,7 +71,7 @@
     <!-- 消费者：只读展示卡片 + 购买 -->
     <div v-else v-loading="loading" class="grid-wrap">
       <el-empty v-if="!loading && products.length === 0" description="暂无在售农产品" />
-      <el-row :gutter="16">
+      <el-row v-else :gutter="16">
         <el-col v-for="p in products" :key="p.id" :xs="24" :sm="12" :md="8" :lg="6" class="card-col">
           <el-card shadow="hover" class="product-card" :body-style="{ padding: 0 }">
             <div class="cover-wrap">
@@ -181,13 +181,34 @@
         <div class="buy-name">{{ buy.product.name }}</div>
         <div class="buy-meta">单价 ¥{{ buy.product.price }} / {{ buy.product.unit || '份' }} · 库存 {{ buy.product.stock }}</div>
       </div>
-      <el-form label-width="90px" style="margin-top: 12px">
+      <el-form label-width="90px" style="margin-top: 12px" v-loading="addressLoading">
         <el-form-item label="购买数量">
           <el-input-number v-model="buy.quantity" :min="1" :max="buy.product?.stock || 1" />
         </el-form-item>
-        <el-form-item label="收货人"><el-input v-model="buy.name" /></el-form-item>
-        <el-form-item label="电话"><el-input v-model="buy.phone" /></el-form-item>
-        <el-form-item label="地址"><el-input v-model="buy.address" /></el-form-item>
+        <el-form-item label="收货地址">
+          <el-select
+            v-if="addresses.length"
+            :model-value="selectedAddressId"
+            placeholder="选择个人中心已保存的地址"
+            style="width: 100%"
+            @change="(id) => onSelectAddress(id, buy)"
+          >
+            <el-option
+              v-for="a in addresses"
+              :key="a.id"
+              :label="formatLabel(a)"
+              :value="a.id"
+            />
+          </el-select>
+          <div v-else class="addr-empty-tip">
+            暂无收货地址，请先到
+            <el-button type="primary" link @click="goProfileAddress">个人中心</el-button>
+            添加
+          </div>
+        </el-form-item>
+        <el-form-item label="收货人"><el-input v-model="buy.name" placeholder="可修改" /></el-form-item>
+        <el-form-item label="电话"><el-input v-model="buy.phone" placeholder="可修改" /></el-form-item>
+        <el-form-item label="地址"><el-input v-model="buy.address" type="textarea" :rows="2" placeholder="可修改" /></el-form-item>
         <el-form-item label="备注"><el-input v-model="buy.remark" /></el-form-item>
         <el-form-item label="合计"><b style="color:#2e7d32">¥{{ buyTotal }}</b></el-form-item>
       </el-form>
@@ -224,10 +245,22 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled, ChatDotRound } from '@element-plus/icons-vue'
 import { productApi, categoryApi, originApi, orderApi, cartApi, favoriteApi, reviewApi } from '../api'
 import userStore, { role, hasRole } from '../stores/user'
+import { useBuyerAddress } from '../composables/useBuyerAddress'
+
+const router = useRouter()
+const {
+  addresses,
+  selectedAddressId,
+  addressLoading,
+  formatLabel,
+  loadAndPrefill,
+  onSelectAddress
+} = useBuyerAddress()
 
 const isManager = computed(() => hasRole('admin', 'farmer'))
 const isConsumer = computed(() => role() === 'consumer')
@@ -265,7 +298,9 @@ const loadProducts = async () => {
   loading.value = true
   try {
     products.value = await productApi.list(filters)
-    await loadReviewStats(products.value)
+    loadReviewStats(products.value).catch(() => {})
+  } catch (e) {
+    products.value = []
   } finally {
     loading.value = false
   }
@@ -390,17 +425,25 @@ const handleCoverError = () => {
   ElMessage.error('图片上传失败，请确认已登录')
 }
 
-const openBuy = (p) => {
+const goProfileAddress = () => {
+  buyVisible.value = false
+  router.push({ path: '/profile', query: { tab: 'address' } })
+}
+
+const openBuy = async (p) => {
   buy.product = p
   buy.quantity = 1
-  buy.name = userStore.user?.nickname || ''
+  buy.remark = ''
+  buy.name = ''
   buy.phone = ''
   buy.address = ''
-  buy.remark = ''
   buyVisible.value = true
+  await loadAndPrefill(buy)
 }
 const submitBuy = async () => {
   if (!buy.name) return ElMessage.warning('请填写收货人')
+  if (!buy.phone) return ElMessage.warning('请填写联系电话')
+  if (!buy.address) return ElMessage.warning('请填写收货地址')
   if (!buy.quantity || buy.quantity < 1) return ElMessage.warning('购买数量至少为 1')
   await orderApi.create({
     buyerName: buy.name,
@@ -409,7 +452,7 @@ const submitBuy = async () => {
     remark: buy.remark,
     items: [{ productId: buy.product.id, quantity: buy.quantity }]
   })
-  ElMessage.success('下单成功，可在「我的订单」查看')
+  ElMessage.success('下单成功，请到「我的订单」完成支付')
   buyVisible.value = false
   loadProducts()
 }
@@ -455,6 +498,7 @@ onMounted(() => { loadOptions(); loadProducts(); loadFavorites() })
 .cover-actions { display: flex; align-items: center; gap: 8px; }
 
 .buy-summary { padding: 12px 14px; background: #f6faf6; border-radius: 8px; }
+.addr-empty-tip { font-size: 13px; color: #8a97a0; line-height: 1.6; }
 .buy-name { font-size: 16px; font-weight: 700; color: #1f2d3d; }
 .buy-meta { margin-top: 4px; font-size: 12px; color: #8a97a0; }
 

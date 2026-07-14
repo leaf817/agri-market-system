@@ -12,7 +12,7 @@
         <el-button type="primary" @click="$router.push('/products')">去选购</el-button>
       </el-empty>
 
-      <el-row :gutter="16">
+      <el-row v-else :gutter="16">
         <el-col v-for="item in list" :key="item.id" :xs="24" :sm="12" :md="8" :lg="6" class="card-col">
           <el-card shadow="hover" class="product-card" :body-style="{ padding: 0 }">
             <div class="cover-wrap">

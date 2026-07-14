@@ -1,5 +1,13 @@
 <template>
-  <div class="stats-page">
+  <div class="stats-page" v-loading="loading">
+    <el-alert
+      v-if="loadError"
+      type="error"
+      :title="loadError"
+      show-icon
+      :closable="false"
+      style="margin-bottom: 16px"
+    />
     <!-- 总览卡片 -->
     <el-row :gutter="16" class="overview">
       <el-col :xs="12" :sm="12" :md="6" v-for="card in cards" :key="card.title" class="overview-col">
@@ -146,6 +154,8 @@ const overview = ref({ productCount: 0, orderCount: 0, totalQuantity: 0, totalAm
 const byCategory = ref([])
 const topProducts = ref([])
 const tip = ref(null)
+const loading = ref(false)
+const loadError = ref('')
 
 const palette = ['#2e7d32', '#43a047', '#66bb6a', '#fb8c00', '#42a5f5', '#8e24aa']
 
@@ -256,10 +266,22 @@ const moveTip = (e) => {
 const hideTip = () => { tip.value = null }
 
 onMounted(async () => {
-  const [o, c, t] = await Promise.all([statsApi.overview(), statsApi.byCategory(), statsApi.topProducts(5)])
-  overview.value = o
-  byCategory.value = c || []
-  topProducts.value = t || []
+  loading.value = true
+  loadError.value = ''
+  try {
+    const [o, c, t] = await Promise.all([
+      statsApi.overview({ silentError: true }),
+      statsApi.byCategory({ silentError: true }),
+      statsApi.topProducts(5, { silentError: true })
+    ])
+    overview.value = o || { productCount: 0, orderCount: 0, totalQuantity: 0, totalAmount: 0 }
+    byCategory.value = c || []
+    topProducts.value = t || []
+  } catch (e) {
+    loadError.value = e?.message || '统计数据加载失败，请确认后端已启动并重新登录'
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 

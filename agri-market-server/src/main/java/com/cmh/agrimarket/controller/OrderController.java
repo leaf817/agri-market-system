@@ -4,6 +4,7 @@ import com.cmh.agrimarket.common.ApiResponse;
 import com.cmh.agrimarket.common.CurrentUserHolder;
 import com.cmh.agrimarket.common.RequireRole;
 import com.cmh.agrimarket.dto.CreateOrderRequest;
+import com.cmh.agrimarket.dto.UpdateOrderRequest;
 import com.cmh.agrimarket.entity.OrderEntity;
 import com.cmh.agrimarket.entity.OrderStatus;
 import com.cmh.agrimarket.entity.Role;
@@ -39,5 +40,31 @@ public class OrderController {
     @PatchMapping("/{id}/status")
     public ApiResponse<OrderEntity> changeStatus(@PathVariable Long id, @RequestParam OrderStatus status) {
         return ApiResponse.ok(service.changeStatus(id, status, CurrentUserHolder.require()));
+    }
+
+    @RequireRole({Role.ADMIN, Role.FARMER})
+    @PutMapping("/{id}")
+    public ApiResponse<OrderEntity> update(@PathVariable Long id, @Valid @RequestBody UpdateOrderRequest req) {
+        return ApiResponse.ok(service.update(id, req, CurrentUserHolder.require()));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        service.delete(id, CurrentUserHolder.require());
+        return ApiResponse.ok();
+    }
+
+    /** 消费者模拟支付 */
+    @RequireRole(Role.CONSUMER)
+    @PostMapping("/{id}/pay")
+    public ApiResponse<OrderEntity> pay(@PathVariable Long id) {
+        return ApiResponse.ok(service.pay(id, CurrentUserHolder.require()));
+    }
+
+    /** 消费者取消待付款订单 */
+    @RequireRole(Role.CONSUMER)
+    @PostMapping("/{id}/cancel")
+    public ApiResponse<OrderEntity> cancel(@PathVariable Long id) {
+        return ApiResponse.ok(service.cancelByConsumer(id, CurrentUserHolder.require()));
     }
 }

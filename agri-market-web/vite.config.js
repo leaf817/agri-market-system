@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+// 每次执行 npm run dev 会重新生成；浏览器刷新不改变（同一 Vite 进程）
+const DEV_BOOT_ID = `${Date.now()}`
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
+  define: {
+    __DEV_BOOT_ID__: JSON.stringify(DEV_BOOT_ID)
+  },
   server: {
     port: 5173,
     proxy: {
