@@ -65,10 +65,11 @@
               </div>
             </div>
 
-            <footer v-if="isPending(row)" class="order-card-foot" @click.stop>
+            <footer v-if="canConsumerAct(row)" class="order-card-foot" @click.stop>
               <div class="foot-actions">
-                <el-button size="small" round @click="cancelOrder(row)">取消订单</el-button>
-                <el-button size="small" type="primary" round @click="payOrder(row)">确认支付</el-button>
+                <el-button v-if="canCancel(row)" size="small" round @click="cancelOrder(row)">取消订单</el-button>
+                <el-button v-if="isPending(row)" size="small" type="primary" round @click="payOrder(row)">确认支付</el-button>
+                <el-button v-if="isShipped(row)" size="small" type="success" round @click="confirmOrder(row)">确认收货</el-button>
               </div>
             </footer>
           </article>
@@ -105,10 +106,12 @@
             <el-table-column label="下单时间" width="160">
               <template #default="{ row }">{{ formatTime(row.createTime) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="110" fixed="right">
+            <el-table-column label="操作" width="210" fixed="right">
               <template #default="{ row }">
                 <div class="op-cell" @click.stop>
-                  <el-button size="small" text type="primary" @click="openStatus(row)">变更状态</el-button>
+                  <el-button v-if="isPaid(row)" size="small" text type="primary" @click="openShip(row)">模拟发货</el-button>
+                  <el-button v-if="canClose(row)" size="small" text type="danger" @click="closeOrder(row)">关闭订单</el-button>
+                  <span v-if="!isPaid(row) && !canClose(row)" class="text-gray">无操作</span>
                 </div>
               </template>
             </el-table-column>
@@ -179,6 +182,28 @@
           <div><label>电话</label><span>{{ current.buyerPhone || '-' }}</span></div>
           <div class="full"><label>地址</label><span>{{ current.buyerAddress || '-' }}</span></div>
           <div v-if="current.remark" class="full"><label>备注</label><span>{{ current.remark }}</span></div>
+          <div v-if="current.deliveryCompany || current.trackingNo || current.deliveryRemark" class="full">
+            <label>物流</label>
+            <span>
+              {{ current.deliveryCompany || '模拟物流' }}
+              <template v-if="current.trackingNo"> / {{ current.trackingNo }}</template>
+              <template v-if="current.deliveryRemark"> / {{ current.deliveryRemark }}</template>
+            </span>
+          </div>
+          <div v-if="current.cancelReason" class="full"><label>取消原因</label><span>{{ current.cancelReason }}</span></div>
+        </div>
+
+        <div class="flow-box">
+          <div class="flow-title">履约流程</div>
+          <el-steps :active="flowActive(current)" finish-status="success" align-center>
+            <el-step title="提交订单" :description="formatTime(current.createTime)" />
+            <el-step title="模拟支付" :description="formatTime(current.payTime)" />
+            <el-step title="商家发货" :description="formatTime(current.shipTime)" />
+            <el-step title="确认收货" :description="formatTime(current.completeTime)" />
+          </el-steps>
+          <div v-if="isCancelled(current)" class="flow-cancel">
+            已于 {{ formatTime(current.cancelTime) }} 取消
+          </div>
         </div>
 
         <el-table :data="current.items" border size="small">
@@ -229,27 +254,29 @@
       </div>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
-        <el-button v-if="isConsumer && current && isPending(current)" @click="cancelOrder(current)">取消订单</el-button>
+        <el-button v-if="isConsumer && current && canCancel(current)" @click="cancelOrder(current)">取消订单</el-button>
         <el-button v-if="isConsumer && current && isPending(current)" type="primary" @click="payOrder(current)">确认支付</el-button>
-        <el-button
-          v-if="isManager && current"
-          type="primary"
-          @click="openStatus(current); detailVisible = false"
-        >变更状态</el-button>
+        <el-button v-if="isConsumer && current && isShipped(current)" type="success" @click="confirmOrder(current)">确认收货</el-button>
+        <el-button v-if="isManager && current && isPaid(current)" type="primary" @click="openShip(current); detailVisible = false">模拟发货</el-button>
+        <el-button v-if="isManager && current && canClose(current)" type="danger" @click="closeOrder(current); detailVisible = false">关闭订单</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="statusVisible" title="变更订单状态" width="380px">
-      <el-form label-width="80px">
-        <el-form-item label="状态">
-          <el-select v-model="targetStatus" style="width: 100%">
-            <el-option v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
-          </el-select>
+    <el-dialog v-model="shipVisible" title="模拟发货" width="460px">
+      <el-form label-width="90px">
+        <el-form-item label="物流公司">
+          <el-input v-model="shipForm.deliveryCompany" placeholder="如：顺丰速运" />
+        </el-form-item>
+        <el-form-item label="物流单号">
+          <el-input v-model="shipForm.trackingNo" placeholder="可填写模拟单号" />
+        </el-form-item>
+        <el-form-item label="发货备注">
+          <el-input v-model="shipForm.deliveryRemark" type="textarea" :rows="3" placeholder="如：已完成打包，预计 2-3 天送达" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="statusVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitStatus">确定</el-button>
+        <el-button @click="shipVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitShip">确认发货</el-button>
       </template>
     </el-dialog>
 
@@ -374,13 +401,13 @@ const loading = ref(false)
 const keyword = ref('')
 const statusFilter = ref('ALL')
 const detailVisible = ref(false)
-const statusVisible = ref(false)
+const shipVisible = ref(false)
 const createVisible = ref(false)
 const reviewVisible = ref(false)
 const reviewViewVisible = ref(false)
 const current = ref(null)
-const currentId = ref(null)
-const targetStatus = ref('')
+const shippingOrderId = ref(null)
+const shipForm = reactive({ deliveryCompany: '', trackingNo: '', deliveryRemark: '' })
 const reviewingItem = ref(null)
 const viewingReview = ref(null)
 const reviewForm = reactive({ rating: 5, content: '' })
@@ -393,16 +420,25 @@ const statusMap = {
   COMPLETED: { label: '已完成', type: 'success' },
   CANCELLED: { label: '已取消', type: 'danger' }
 }
-const statusFrom = ref('')
-/** 全部状态可随意前进/回退（含已取消） */
-const statusOptions = computed(() =>
-  Object.entries(statusMap).map(([value, v]) => ({ value, label: v.label }))
-)
 const normalizeStatus = (s) => String(s || '').toUpperCase()
 const statusLabel = (s) => statusMap[normalizeStatus(s)]?.label || s
 const statusClass = (s) => `is-${normalizeStatus(s).toLowerCase()}`
 const isPending = (row) => normalizeStatus(row?.status) === 'PENDING'
 const isCancelled = (row) => normalizeStatus(row?.status) === 'CANCELLED'
+const isPaid = (row) => normalizeStatus(row?.status) === 'PAID'
+const isShipped = (row) => normalizeStatus(row?.status) === 'SHIPPED'
+const canCancel = (row) => ['PENDING', 'PAID'].includes(normalizeStatus(row?.status))
+const canClose = (row) => ['PENDING', 'PAID'].includes(normalizeStatus(row?.status))
+const canConsumerAct = (row) => canCancel(row) || isPending(row) || isShipped(row)
+const flowActive = (row) => {
+  const st = normalizeStatus(row?.status)
+  if (st === 'CANCELLED') return 1
+  if (st === 'PENDING') return 1
+  if (st === 'PAID') return 2
+  if (st === 'SHIPPED') return 3
+  if (st === 'COMPLETED') return 4
+  return 0
+}
 
 const countByStatus = (status) =>
   orders.value.filter((o) => normalizeStatus(o.status) === status).length
@@ -482,7 +518,7 @@ const load = async () => {
 }
 
 const openDetail = async (row, column) => {
-  // 点操作列时不打开详情（避免抢走「变更状态」点击）
+  // 点操作列时不打开详情（避免抢走操作按钮点击）
   if (column && (column.label === '操作' || column.fixed === 'right')) return
 
   try {
@@ -559,17 +595,21 @@ const submitReview = async () => {
   reviewVisible.value = false
 }
 
-const openStatus = (row) => {
-  currentId.value = row.id
-  statusFrom.value = normalizeStatus(row.status)
-  targetStatus.value = statusFrom.value
-  statusVisible.value = true
+const openShip = (row) => {
+  shippingOrderId.value = row.id
+  Object.assign(shipForm, {
+    deliveryCompany: row.deliveryCompany || '',
+    trackingNo: row.trackingNo || '',
+    deliveryRemark: row.deliveryRemark || ''
+  })
+  shipVisible.value = true
 }
 
-const submitStatus = async () => {
-  await orderApi.changeStatus(currentId.value, targetStatus.value)
-  ElMessage.success('状态已更新')
-  statusVisible.value = false
+const submitShip = async () => {
+  await orderApi.ship(shippingOrderId.value, { ...shipForm })
+  ElMessage.success('已模拟发货')
+  shipVisible.value = false
+  detailVisible.value = false
   load()
 }
 
@@ -623,13 +663,49 @@ const payOrder = async (row) => {
 }
 
 const cancelOrder = async (row) => {
-  await ElMessageBox.confirm(
+  const { value } = await ElMessageBox.prompt(
     `确定取消订单 ${row.orderNo}？取消后将恢复库存。`,
     '取消订单',
-    { type: 'warning', confirmButtonText: '确定取消', cancelButtonText: '返回' }
+    {
+      type: 'warning',
+      confirmButtonText: '确定取消',
+      cancelButtonText: '返回',
+      inputPlaceholder: '可填写取消原因',
+      inputValue: '消费者取消订单'
+    }
   )
-  await orderApi.cancel(row.id)
+  await orderApi.cancel(row.id, value || '消费者取消订单')
   ElMessage.success('订单已取消')
+  detailVisible.value = false
+  load()
+}
+
+const confirmOrder = async (row) => {
+  await ElMessageBox.confirm(
+    `确认已收到订单 ${row.orderNo} 的商品？`,
+    '确认收货',
+    { type: 'success', confirmButtonText: '确认收货', cancelButtonText: '返回' }
+  )
+  await orderApi.confirm(row.id)
+  ElMessage.success('订单已完成')
+  detailVisible.value = false
+  load()
+}
+
+const closeOrder = async (row) => {
+  const { value } = await ElMessageBox.prompt(
+    `确定关闭订单 ${row.orderNo}？关闭后将恢复库存。`,
+    '关闭订单',
+    {
+      type: 'warning',
+      confirmButtonText: '关闭订单',
+      cancelButtonText: '返回',
+      inputPlaceholder: '请填写关闭原因',
+      inputValue: '后台关闭订单'
+    }
+  )
+  await orderApi.close(row.id, value || '后台关闭订单')
+  ElMessage.success('订单已关闭')
   detailVisible.value = false
   load()
 }
@@ -945,6 +1021,27 @@ onUnmounted(() => {
 }
 .detail-grid span { color: #304038; }
 .detail-total { margin-top: 12px; text-align: right; font-size: 14px; color: #5a6a5a; }
+.flow-box {
+  margin: 12px 0 16px;
+  padding: 14px;
+  border: 1px solid #e8efe8;
+  border-radius: 12px;
+  background: #fbfdfb;
+}
+.flow-title {
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1f2d3d;
+}
+.flow-cancel {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 13px;
+}
 
 .order-item { display: flex; align-items: center; margin-bottom: 8px; }
 .addr-empty-tip { font-size: 13px; color: #8a97a0; line-height: 1.6; }

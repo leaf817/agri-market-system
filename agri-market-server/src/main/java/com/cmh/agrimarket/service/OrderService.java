@@ -2,6 +2,7 @@ package com.cmh.agrimarket.service;
 
 import com.cmh.agrimarket.common.AuthException;
 import com.cmh.agrimarket.common.CurrentUser;
+import com.cmh.agrimarket.dto.ShipOrderRequest;
 import com.cmh.agrimarket.dto.CreateOrderRequest;
 import com.cmh.agrimarket.dto.OrderItemRequest;
 import com.cmh.agrimarket.dto.UpdateOrderRequest;
@@ -103,7 +104,7 @@ public class OrderService {
     @Transactional
     public OrderEntity changeStatus(Long id, OrderStatus newStatus, CurrentUser current) {
         OrderEntity order = get(id, current);
-        applyStatusChange(order, newStatus);
+        applyStrictStatusChange(order, newStatus, current);
         return orderRepo.save(order);
     }
 
@@ -119,7 +120,7 @@ public class OrderService {
         order.setBuyerAddress(req.buyerAddress());
         order.setRemark(req.remark());
         if (req.status() != null && req.status() != order.getStatus()) {
-            applyStatusChange(order, req.status());
+            applyStrictStatusChange(order, req.status(), current);
         }
         return orderRepo.save(order);
     }
@@ -144,40 +145,37 @@ public class OrderService {
         orderRepo.delete(order);
     }
 
-    private void applyStatusChange(OrderEntity order, OrderStatus newStatus) {
+    private void applyStrictStatusChange(OrderEntity order, OrderStatus newStatus, CurrentUser current) {
         OrderStatus old = order.getStatus();
         if (old == newStatus) {
             return;
         }
-        // 全部状态可随意前进/回退；同步库存与销量
-        boolean wasHolding = holdsStock(old);
-        boolean willHold = holdsStock(newStatus);
-        if (wasHolding && !willHold) {
-            restoreStock(order);
-        } else if (!wasHolding && willHold) {
-            deductStock(order);
+        if (old == OrderStatus.PENDING && newStatus == OrderStatus.PAID) {
+            markPaid(order);
+            return;
         }
-
-        boolean wasEffective = isSalesEffective(old);
-        boolean willBeEffective = isSalesEffective(newStatus);
-        if (!wasEffective && willBeEffective) {
-            addSales(order);
-        } else if (wasEffective && !willBeEffective) {
-            subtractSales(order);
+        if (old == OrderStatus.PAID && newStatus == OrderStatus.SHIPPED) {
+            if (current.role() != Role.ADMIN && current.role() != Role.FARMER) {
+                throw new AuthException(403, "仅管理员或农户可发货");
+            }
+            markShipped(order, null);
+            return;
         }
-        order.setStatus(newStatus);
-    }
-
-    /** 占用库存的状态（已取消不占用） */
-    private static boolean holdsStock(OrderStatus status) {
-        return status != OrderStatus.CANCELLED;
-    }
-
-    /** 已计入销量的状态（待付款、已取消不计入） */
-    private static boolean isSalesEffective(OrderStatus status) {
-        return status == OrderStatus.PAID
-                || status == OrderStatus.SHIPPED
-                || status == OrderStatus.COMPLETED;
+        if (old == OrderStatus.SHIPPED && newStatus == OrderStatus.COMPLETED) {
+            if (current.role() != Role.CONSUMER) {
+                throw new AuthException(403, "仅消费者可确认收货");
+            }
+            markCompleted(order);
+            return;
+        }
+        if (newStatus == OrderStatus.CANCELLED) {
+            if (old != OrderStatus.PENDING && old != OrderStatus.PAID) {
+                throw new IllegalArgumentException("仅待付款或待发货订单可以取消");
+            }
+            cancelOrder(order, "后台关闭订单");
+            return;
+        }
+        throw new IllegalArgumentException("不允许从 " + old.getLabel() + " 变更为 " + newStatus.getLabel());
     }
 
     private void restoreStock(OrderEntity order) {
@@ -187,20 +185,6 @@ public class OrderService {
                 throw new IllegalStateException("订单商品已不存在，无法回滚库存，请先处理关联数据");
             }
             product.setStock(product.getStock() + item.getQuantity());
-            productRepo.save(product);
-        }
-    }
-
-    private void deductStock(OrderEntity order) {
-        for (OrderItem item : order.getItems()) {
-            Product product = item.getProduct();
-            if (product == null) {
-                throw new IllegalStateException("订单商品已不存在，无法扣减库存");
-            }
-            if (product.getStock() < item.getQuantity()) {
-                throw new IllegalArgumentException("库存不足，无法恢复订单: " + product.getName());
-            }
-            product.setStock(product.getStock() - item.getQuantity());
             productRepo.save(product);
         }
     }
@@ -235,22 +219,102 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new IllegalArgumentException("只有待付款订单可以支付");
         }
-        addSales(order);
-        order.setStatus(OrderStatus.PAID);
+        markPaid(order);
         return orderRepo.save(order);
     }
 
-    /** 消费者取消待付款订单 */
+    /** 消费者取消订单：待付款可取消；待发货作为简化流程也允许取消并回滚销量/库存。 */
     @Transactional
-    public OrderEntity cancelByConsumer(Long id, CurrentUser current) {
+    public OrderEntity cancelByConsumer(Long id, String reason, CurrentUser current) {
         if (current.role() != Role.CONSUMER) {
-            throw new AuthException(403, "仅消费者可取消本人待付款订单");
+            throw new AuthException(403, "仅消费者可取消本人订单");
         }
         OrderEntity order = get(id, current);
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new IllegalArgumentException("只有待付款订单可以取消");
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.PAID) {
+            throw new IllegalArgumentException("仅待付款或待发货订单可以取消");
         }
-        return changeStatus(id, OrderStatus.CANCELLED, current);
+        cancelOrder(order, reason == null || reason.isBlank() ? "消费者取消订单" : reason);
+        return orderRepo.save(order);
+    }
+
+    /** 农户/管理员模拟发货：待发货 → 已发货 */
+    @Transactional
+    public OrderEntity ship(Long id, ShipOrderRequest req, CurrentUser current) {
+        if (current.role() != Role.ADMIN && current.role() != Role.FARMER) {
+            throw new AuthException(403, "仅管理员或农户可发货");
+        }
+        OrderEntity order = get(id, current);
+        if (order.getStatus() != OrderStatus.PAID) {
+            throw new IllegalArgumentException("只有待发货订单可以发货");
+        }
+        markShipped(order, req);
+        return orderRepo.save(order);
+    }
+
+    /** 消费者确认收货：已发货 → 已完成 */
+    @Transactional
+    public OrderEntity confirm(Long id, CurrentUser current) {
+        if (current.role() != Role.CONSUMER) {
+            throw new AuthException(403, "仅消费者可确认收货");
+        }
+        OrderEntity order = get(id, current);
+        if (order.getStatus() != OrderStatus.SHIPPED) {
+            throw new IllegalArgumentException("只有已发货订单可以确认收货");
+        }
+        markCompleted(order);
+        return orderRepo.save(order);
+    }
+
+    /** 农户/管理员后台关闭订单：待付款/待发货可关闭。 */
+    @Transactional
+    public OrderEntity close(Long id, String reason, CurrentUser current) {
+        if (current.role() != Role.ADMIN && current.role() != Role.FARMER) {
+            throw new AuthException(403, "仅管理员或农户可关闭订单");
+        }
+        OrderEntity order = get(id, current);
+        if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.PAID) {
+            throw new IllegalArgumentException("仅待付款或待发货订单可以关闭");
+        }
+        cancelOrder(order, reason == null || reason.isBlank() ? "后台关闭订单" : reason);
+        return orderRepo.save(order);
+    }
+
+    private void markPaid(OrderEntity order) {
+        addSales(order);
+        order.setStatus(OrderStatus.PAID);
+        order.setPayTime(LocalDateTime.now());
+    }
+
+    private void markShipped(OrderEntity order, ShipOrderRequest req) {
+        order.setStatus(OrderStatus.SHIPPED);
+        order.setShipTime(LocalDateTime.now());
+        if (req != null) {
+            order.setDeliveryCompany(blankToNull(req.deliveryCompany()));
+            order.setTrackingNo(blankToNull(req.trackingNo()));
+            order.setDeliveryRemark(blankToNull(req.deliveryRemark()));
+        }
+    }
+
+    private void markCompleted(OrderEntity order) {
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setCompleteTime(LocalDateTime.now());
+    }
+
+    private void cancelOrder(OrderEntity order, String reason) {
+        if (order.getStatus() == OrderStatus.CANCELLED || order.getStatus() == OrderStatus.COMPLETED) {
+            throw new IllegalArgumentException("当前订单状态不允许取消");
+        }
+        restoreStock(order);
+        if (order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.SHIPPED) {
+            subtractSales(order);
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelTime(LocalDateTime.now());
+        order.setCancelReason(reason);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /** 访问校验：消费者仅看本人订单，农户仅看含本人产品的订单。 */

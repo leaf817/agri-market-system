@@ -49,10 +49,12 @@ CREATE TABLE origin (
     name        VARCHAR(100)  NOT NULL COMMENT '产地/基地名称',
     location    VARCHAR(200)  NULL COMMENT '所在地',
     farmer      VARCHAR(100)  NULL COMMENT '农户/合作社',
+    farmer_id   BIGINT        NULL COMMENT '所属农户用户 id',
     phone       VARCHAR(30)   NULL,
     certificate VARCHAR(200)  NULL COMMENT '资质认证',
     description VARCHAR(1000) NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    KEY idx_origin_farmer (farmer_id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 -- 农产品
@@ -89,6 +91,14 @@ CREATE TABLE orders (
     total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
     status       VARCHAR(20)    NOT NULL,
     remark       VARCHAR(500)   NULL,
+    delivery_company VARCHAR(80) NULL,
+    tracking_no   VARCHAR(80)   NULL,
+    delivery_remark VARCHAR(500) NULL,
+    cancel_reason VARCHAR(500)  NULL,
+    pay_time     DATETIME(6)    NULL,
+    ship_time    DATETIME(6)    NULL,
+    complete_time DATETIME(6)   NULL,
+    cancel_time  DATETIME(6)    NULL,
     create_time  DATETIME(6)    NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uk_orders_no (order_no),

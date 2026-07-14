@@ -11,17 +11,22 @@ import Categories from '../views/Categories.vue'
 import Origins from '../views/Origins.vue'
 import Orders from '../views/Orders.vue'
 import Statistics from '../views/Statistics.vue'
+import Users from '../views/Users.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
   { path: '/login', name: 'login', component: Login, meta: { public: true, title: '登录' } },
   { path: '/register', name: 'register', component: Register, meta: { public: true, title: '注册' } },
-  { path: '/products', name: 'products', component: Products, meta: { title: '农产品', roles: ['admin', 'farmer', 'consumer'] } },
+  { path: '/products', name: 'products', component: Products, meta: { title: '全部产品', roles: ['admin', 'farmer', 'consumer'], productMode: 'public' } },
+  { path: '/admin/products', name: 'adminProducts', component: Products, meta: { title: '产品管理', roles: ['admin'], productMode: 'admin' } },
+  { path: '/my-products', name: 'myProducts', component: Products, meta: { title: '我的产品管理', roles: ['farmer'], productMode: 'mine' } },
   { path: '/profile', name: 'profile', component: Profile, meta: { title: '个人中心', roles: ['admin', 'farmer', 'consumer'] } },
   { path: '/cart', name: 'cart', component: Cart, meta: { title: '购物车', roles: ['consumer'] } },
   { path: '/favorites', name: 'favorites', component: Favorites, meta: { title: '我的收藏', roles: ['consumer'] } },
   { path: '/categories', name: 'categories', component: Categories, meta: { title: '分类管理', roles: ['admin'] } },
-  { path: '/origins', name: 'origins', component: Origins, meta: { title: '产地公示', roles: ['admin'] } },
+  { path: '/origins', name: 'origins', component: Origins, meta: { title: '产地管理', roles: ['admin'], originMode: 'admin' } },
+  { path: '/my-origins', name: 'myOrigins', component: Origins, meta: { title: '我的产地', roles: ['farmer'], originMode: 'mine' } },
+  { path: '/users', name: 'users', component: Users, meta: { title: '用户管理', roles: ['admin'] } },
   { path: '/orders', name: 'orders', component: Orders, meta: { title: '订单', roles: ['admin', 'farmer', 'consumer'] } },
   { path: '/statistics', name: 'statistics', component: Statistics, meta: { title: '销量统计', roles: ['admin', 'farmer'] } },
   { path: '/:pathMatch(.*)*', redirect: '/login' }

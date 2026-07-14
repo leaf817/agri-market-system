@@ -8,8 +8,13 @@ import com.cmh.agrimarket.dto.UserVO;
 import com.cmh.agrimarket.entity.Role;
 import com.cmh.agrimarket.entity.User;
 import com.cmh.agrimarket.repository.UserRepository;
+import com.cmh.agrimarket.security.SecurityUser;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,19 +23,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
     private final UserRepository userRepository;
     private final TokenService tokenService;
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+    private final AuthenticationManager authenticationManager;
+    private final PasswordEncoder encoder;
 
     public LoginResponse login(LoginRequest req) {
-        User user = userRepository.findByUsername(req.username())
-                .orElseThrow(() -> new AuthException(401, "用户名或密码错误"));
-        if (Boolean.FALSE.equals(user.getEnabled())) {
-            throw new AuthException(401, "账号已被禁用");
-        }
-        if (!encoder.matches(req.password(), user.getPassword())) {
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(req.username(), req.password())
+            );
+            SecurityUser principal = (SecurityUser) authentication.getPrincipal();
+            User user = principal.getUser();
+            String token = tokenService.issue(user.getId());
+            return new LoginResponse(token, UserVO.of(user));
+        } catch (AuthenticationException e) {
             throw new AuthException(401, "用户名或密码错误");
         }
-        String token = tokenService.issue(user.getId());
-        return new LoginResponse(token, UserVO.of(user));
     }
 
     @Transactional
@@ -39,10 +46,11 @@ public class AuthService {
             throw new AuthException(400, "用户名已存在");
         }
         User user = new User();
-        user.setUsername(req.username());
+        Role role = parseRegisterRole(req.role());
+        user.setUsername(req.username().trim());
         user.setPassword(encoder.encode(req.password()));
-        user.setNickname(req.nickname() == null || req.nickname().isBlank() ? req.username() : req.nickname());
-        user.setRole(Role.CONSUMER);
+        user.setNickname(req.nickname() == null || req.nickname().isBlank() ? req.username().trim() : req.nickname().trim());
+        user.setRole(role);
         user.setEnabled(true);
         userRepository.save(user);
         String token = tokenService.issue(user.getId());
@@ -66,5 +74,15 @@ public class AuthService {
         user.setRole(role);
         user.setEnabled(true);
         userRepository.save(user);
+    }
+
+    private Role parseRegisterRole(String value) {
+        if (value == null || value.isBlank() || "consumer".equalsIgnoreCase(value)) {
+            return Role.CONSUMER;
+        }
+        if ("farmer".equalsIgnoreCase(value)) {
+            return Role.FARMER;
+        }
+        throw new AuthException(400, "仅支持注册消费者或农户账号");
     }
 }

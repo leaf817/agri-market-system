@@ -32,6 +32,10 @@ public class Origin {
     @Column(length = 100)
     private String farmer;
 
+    /** 所属农户用户 id；管理员维护的公共产地可为空 */
+    @Column(name = "farmer_id")
+    private Long farmerId;
+
     /** 联系电话 */
     @Column(length = 30)
     private String phone;

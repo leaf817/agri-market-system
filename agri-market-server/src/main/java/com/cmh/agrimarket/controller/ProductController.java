@@ -23,16 +23,10 @@ public class ProductController {
     @GetMapping
     public ApiResponse<List<Product>> list(@RequestParam(required = false) Long categoryId,
                                            @RequestParam(required = false) Integer status,
-                                           @RequestParam(required = false) String keyword) {
+                                           @RequestParam(required = false) String keyword,
+                                           @RequestParam(required = false, defaultValue = "public") String scope) {
         CurrentUser me = CurrentUserHolder.require();
-        // 农户只能看到本人的产品；消费者只能看到上架产品
-        Long farmerId = me.role() == Role.FARMER ? me.id() : null;
-        // 注意：不要写成「cond ? 1 : status」三元，会在 status 为 null 时触发 Integer 拆箱 NPE
-        Integer st = status;
-        if (me.role() == Role.CONSUMER) {
-            st = 1;
-        }
-        return ApiResponse.ok(service.list(categoryId, st, keyword, farmerId));
+        return ApiResponse.ok(service.listForScope(scope, categoryId, status, keyword, me));
     }
 
     @GetMapping("/{id}")

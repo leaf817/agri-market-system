@@ -44,6 +44,32 @@ public class ProductService {
         return stream.toList();
     }
 
+    public List<Product> listForScope(String scope, Long categoryId, Integer status, String keyword, CurrentUser current) {
+        String s = scope == null || scope.isBlank() ? "public" : scope;
+        if ("public".equalsIgnoreCase(s)) {
+            return list(categoryId, 1, keyword, null);
+        }
+        if ("mine".equalsIgnoreCase(s)) {
+            if (current == null || current.role() != Role.FARMER) {
+                throw new AuthException(403, "仅农户可查看自己的农产品");
+            }
+            return list(categoryId, status, keyword, current.id());
+        }
+        if ("manage".equalsIgnoreCase(s)) {
+            if (current == null) {
+                throw new AuthException(401, "未登录或登录已过期");
+            }
+            if (current.role() == Role.ADMIN) {
+                return list(categoryId, status, keyword, null);
+            }
+            if (current.role() == Role.FARMER) {
+                return list(categoryId, status, keyword, current.id());
+            }
+            throw new AuthException(403, "消费者无商品管理权限");
+        }
+        throw new IllegalArgumentException("不支持的商品查询范围: " + scope);
+    }
+
     public Product get(Long id) {
         return repo.findById(id).orElseThrow(() -> new EntityNotFoundException("商品不存在: " + id));
     }
@@ -51,7 +77,7 @@ public class ProductService {
     @Transactional
     public Product create(ProductRequest req, CurrentUser current) {
         Product p = new Product();
-        apply(p, req);
+        apply(p, req, current);
         p.setSales(0);
         // 农户上架的产品归属本人；管理员创建的为公共产品（farmerId=null）
         if (current != null && current.role() == Role.FARMER) {
@@ -64,7 +90,7 @@ public class ProductService {
     public Product update(Long id, ProductRequest req, CurrentUser current) {
         Product p = get(id);
         checkOwner(p, current);
-        apply(p, req);
+        apply(p, req, current);
         return repo.save(p);
     }
 
@@ -96,7 +122,7 @@ public class ProductService {
         }
     }
 
-    private void apply(Product p, ProductRequest req) {
+    private void apply(Product p, ProductRequest req, CurrentUser current) {
         p.setName(req.name());
         p.setPrice(req.price());
         p.setStock(req.stock());
@@ -113,12 +139,11 @@ public class ProductService {
         } else {
             p.setCategory(null);
         }
-        if (req.originId() != null) {
-            Origin o = originRepo.findById(req.originId())
-                    .orElseThrow(() -> new EntityNotFoundException("产地不存在: " + req.originId()));
-            p.setOrigin(o);
-        } else {
-            p.setOrigin(null);
+        Origin o = originRepo.findById(req.originId())
+                .orElseThrow(() -> new EntityNotFoundException("产地不存在: " + req.originId()));
+        if (current != null && current.role() == Role.FARMER && !current.id().equals(o.getFarmerId())) {
+            throw new AuthException(403, "农户只能绑定自己的产地");
         }
+        p.setOrigin(o);
     }
 }

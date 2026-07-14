@@ -9,7 +9,7 @@
               <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
           </el-form-item>
-          <el-form-item v-if="isManager" label="状态">
+          <el-form-item v-if="isManageMode" label="状态">
             <el-select v-model="filters.status" placeholder="全部状态" clearable style="width: 130px" @change="loadProducts">
               <el-option label="上架" :value="1" />
               <el-option label="下架" :value="0" />
@@ -23,12 +23,12 @@
             <el-button :icon="Refresh" @click="resetFilter">重置</el-button>
           </el-form-item>
         </el-form>
-        <el-button v-if="isManager" type="primary" :icon="Plus" @click="openCreate">上架农产品</el-button>
+        <el-button v-if="isManageMode" type="primary" :icon="Plus" @click="openCreate">上架农产品</el-button>
       </div>
     </el-card>
 
     <!-- 管理端：表格 + 表单弹窗 -->
-    <el-card v-if="isManager" shadow="never">
+    <el-card v-if="isManageMode" shadow="never">
       <el-table :data="products" v-loading="loading" border stripe>
         <el-table-column label="封面" width="84">
           <template #default="{ row }">
@@ -111,7 +111,7 @@
               </div>
               <div class="nums">库存 {{ p.stock }}</div>
             </div>
-            <div class="card-qty" @click.stop>
+            <div v-if="isConsumer" class="card-qty" @click.stop>
               <span class="qty-label">购买数量</span>
               <el-input-number
                 :model-value="getCardQty(p)"
@@ -123,7 +123,7 @@
                 @update:model-value="(v) => setCardQty(p.id, v)"
               />
             </div>
-            <div class="actions">
+            <div v-if="isConsumer" class="actions">
               <el-button
                 circle
                 :type="isFav(p.id) ? 'danger' : 'default'"
@@ -151,7 +151,7 @@
     </div>
 
     <!-- 新增/编辑弹窗（管理端） -->
-    <el-dialog v-if="isManager" v-model="dialogVisible" :title="editingId ? '编辑农产品' : '上架农产品'" width="560px">
+    <el-dialog v-if="isManageMode" v-model="dialogVisible" :title="editingId ? '编辑农产品' : '上架农产品'" width="560px">
       <el-form :model="form" label-width="90px" :rules="rules" ref="formRef">
         <el-form-item label="名称" prop="name"><el-input v-model="form.name" /></el-form-item>
         <el-form-item label="分类">
@@ -159,10 +159,13 @@
             <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="产地">
+        <el-form-item label="产地" prop="originId">
           <el-select v-model="form.originId" placeholder="请选择产地" style="width: 100%">
             <el-option v-for="o in origins" :key="o.id" :label="o.name" :value="o.id" />
           </el-select>
+          <div v-if="isFarmerManage && origins.length === 0" class="addr-empty-tip">
+            请先到 <el-button type="primary" link @click="goMyOrigins">我的产地</el-button> 创建产地
+          </div>
         </el-form-item>
         <el-form-item label="价格" prop="price"><el-input-number v-model="form.price" :min="0" :precision="2" :step="1" /></el-form-item>
         <el-form-item label="库存" prop="stock"><el-input-number v-model="form.stock" :min="0" :step="1" /></el-form-item>
@@ -270,8 +273,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
 import { productApi, categoryApi, originApi, orderApi, cartApi, favoriteApi, reviewApi } from '../api'
@@ -279,6 +283,7 @@ import userStore, { role, hasRole } from '../stores/user'
 import { useBuyerAddress } from '../composables/useBuyerAddress'
 
 const router = useRouter()
+const route = useRoute()
 const {
   addresses,
   selectedAddressId,
@@ -288,7 +293,9 @@ const {
   onSelectAddress
 } = useBuyerAddress()
 
-const isManager = computed(() => hasRole('admin', 'farmer'))
+const productMode = computed(() => route.meta?.productMode || 'public')
+const isManageMode = computed(() => productMode.value === 'admin' || productMode.value === 'mine')
+const isFarmerManage = computed(() => productMode.value === 'mine')
 const isConsumer = computed(() => role() === 'consumer')
 const uploadHeaders = computed(() => ({
   Authorization: userStore.token ? `Bearer ${userStore.token}` : ''
@@ -325,7 +332,8 @@ const filters = reactive({ categoryId: null, status: null, keyword: '' })
 const form = reactive({ name: '', categoryId: null, originId: null, price: 0, stock: 0, unit: '', cover: '', description: '', status: 1 })
 const rules = {
   name: [{ required: true, message: '请输入商品名称', trigger: 'blur' }],
-  price: [{ required: true, message: '请输入价格', trigger: 'blur' }]
+  price: [{ required: true, message: '请输入价格', trigger: 'blur' }],
+  originId: [{ required: true, message: '请选择产地', trigger: 'change' }]
 }
 
 // 购买
@@ -336,7 +344,10 @@ const buyTotal = computed(() => (buy.product ? (Number(buy.product.price) * buy.
 const loadProducts = async () => {
   loading.value = true
   try {
-    products.value = await productApi.list(filters)
+    const scope = productMode.value === 'admin' ? 'manage' : productMode.value === 'mine' ? 'mine' : 'public'
+    const params = { ...filters, scope }
+    if (!isManageMode.value) params.status = 1
+    products.value = await productApi.list(params)
     loadReviewStats(products.value).catch(() => {})
   } catch (e) {
     products.value = []
@@ -390,7 +401,8 @@ const loadFavorites = async () => {
 }
 const loadOptions = async () => {
   categories.value = await categoryApi.list()
-  origins.value = await originApi.list()
+  const originScope = productMode.value === 'mine' ? 'mine' : productMode.value === 'admin' ? 'manage' : 'public'
+  origins.value = await originApi.list({ scope: originScope })
 }
 const isFav = (productId) => favoriteIds.value.has(productId)
 const toggleFav = async (p) => {
@@ -430,6 +442,10 @@ const openEdit = (row) => {
 }
 const submit = async () => {
   await formRef.value.validate()
+  if (isFarmerManage.value && origins.value.length === 0) {
+    ElMessage.warning('请先创建自己的产地')
+    return
+  }
   if (editingId.value) { await productApi.update(editingId.value, form); ElMessage.success('已更新') }
   else { await productApi.create(form); ElMessage.success('上架成功') }
   dialogVisible.value = false
@@ -471,6 +487,11 @@ const goProfileAddress = () => {
   router.push({ path: '/profile', query: { tab: 'address' } })
 }
 
+const goMyOrigins = () => {
+  dialogVisible.value = false
+  router.push('/my-origins')
+}
+
 const openBuy = async (p) => {
   buy.product = p
   buy.quantity = getCardQty(p)
@@ -499,6 +520,11 @@ const submitBuy = async () => {
 }
 
 onMounted(() => { loadOptions(); loadProducts(); loadFavorites() })
+watch(() => route.fullPath, () => {
+  Object.assign(filters, { categoryId: null, status: null, keyword: '' })
+  loadOptions()
+  loadProducts()
+})
 </script>
 
 <style scoped>

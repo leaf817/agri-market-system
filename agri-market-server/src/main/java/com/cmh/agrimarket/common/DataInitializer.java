@@ -2,6 +2,8 @@ package com.cmh.agrimarket.common;
 
 import com.cmh.agrimarket.entity.Product;
 import com.cmh.agrimarket.entity.Role;
+import com.cmh.agrimarket.entity.Origin;
+import com.cmh.agrimarket.repository.OriginRepository;
 import com.cmh.agrimarket.repository.ProductRepository;
 import com.cmh.agrimarket.repository.UserRepository;
 import com.cmh.agrimarket.service.AuthService;
@@ -24,6 +26,7 @@ public class DataInitializer implements CommandLineRunner {
     private final AuthService authService;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final OriginRepository originRepository;
 
     @Override
     public void run(String... args) {
@@ -39,6 +42,13 @@ public class DataInitializer implements CommandLineRunner {
             if (!unowned.isEmpty()) {
                 unowned.forEach(p -> p.setFarmerId(farmer.getId()));
                 productRepository.saveAll(unowned);
+            }
+            List<Origin> unownedOrigins = originRepository.findAll().stream()
+                    .filter(o -> o.getFarmerId() == null)
+                    .toList();
+            if (!unownedOrigins.isEmpty()) {
+                unownedOrigins.forEach(o -> o.setFarmerId(farmer.getId()));
+                originRepository.saveAll(unownedOrigins);
             }
         });
 

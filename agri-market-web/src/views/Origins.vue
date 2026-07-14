@@ -2,7 +2,7 @@
   <el-card shadow="never">
     <template #header>
       <div class="card-header">
-        <span>产地信息公示</span>
+        <span>{{ isMineMode ? '我的产地' : '产地管理' }}</span>
         <el-button type="primary" :icon="Plus" @click="openCreate">新增产地</el-button>
       </div>
     </template>
@@ -12,6 +12,7 @@
       <el-table-column prop="name" label="产地/基地" min-width="140" />
       <el-table-column prop="location" label="所在地" min-width="160" />
       <el-table-column prop="farmer" label="农户/合作社" width="140" />
+      <el-table-column v-if="!isMineMode" prop="farmerId" label="归属农户ID" width="110" />
       <el-table-column prop="phone" label="联系电话" width="130" />
       <el-table-column prop="certificate" label="资质认证" width="140" />
       <el-table-column prop="description" label="介绍" show-overflow-tooltip />
@@ -41,19 +42,22 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { originApi } from '../api'
 
 const list = ref([])
+const route = useRoute()
 const loading = ref(false)
 const dialogVisible = ref(false)
 const form = reactive({ id: null, name: '', location: '', farmer: '', phone: '', certificate: '', description: '' })
+const isMineMode = computed(() => route.meta?.originMode === 'mine')
 
 const load = async () => {
   loading.value = true
-  try { list.value = await originApi.list() } finally { loading.value = false }
+  try { list.value = await originApi.list({ scope: isMineMode.value ? 'mine' : 'manage' }) } finally { loading.value = false }
 }
 const reset = () => Object.assign(form, { id: null, name: '', location: '', farmer: '', phone: '', certificate: '', description: '' })
 const openCreate = () => { reset(); dialogVisible.value = true }
@@ -71,6 +75,7 @@ const remove = async (row) => {
   load()
 }
 onMounted(load)
+watch(() => route.fullPath, load)
 </script>
 
 <style scoped>

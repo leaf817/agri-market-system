@@ -17,7 +17,7 @@
       </el-form>
       <div class="foot">
         <span>还没有账号？</span>
-        <el-link type="primary" @click="$router.push('/register')">消费者注册</el-link>
+        <el-link type="primary" @click="$router.push('/register')">注册</el-link>
       </div>
       <div class="tips">演示账号：admin / farmer / consumer，密码均为 123456</div>
     </el-card>

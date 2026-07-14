@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 public record ProductRequest(
         @NotBlank(message = "商品名称不能为空") String name,
         Long categoryId,
-        Long originId,
+        @NotNull(message = "请选择产地") Long originId,
         @NotNull @DecimalMin(value = "0", message = "价格不能小于0") BigDecimal price,
         @NotNull @Min(value = 0, message = "库存不能小于0") Integer stock,
         String unit,

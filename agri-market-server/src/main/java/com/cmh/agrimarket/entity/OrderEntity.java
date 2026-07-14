@@ -49,6 +49,26 @@ public class OrderEntity {
     @Column(length = 500)
     private String remark;
 
+    @Column(length = 80)
+    private String deliveryCompany;
+
+    @Column(length = 80)
+    private String trackingNo;
+
+    @Column(length = 500)
+    private String deliveryRemark;
+
+    @Column(length = 500)
+    private String cancelReason;
+
+    private LocalDateTime payTime;
+
+    private LocalDateTime shipTime;
+
+    private LocalDateTime completeTime;
+
+    private LocalDateTime cancelTime;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 

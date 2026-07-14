@@ -1,5 +1,9 @@
 <template>
   <div class="stats-page" v-loading="loading">
+    <div class="stats-head">
+      <div class="stats-title">{{ scopeTitle }}</div>
+      <div class="stats-sub">{{ scopeSub }}</div>
+    </div>
     <el-alert
       v-if="loadError"
       type="error"
@@ -149,6 +153,7 @@
 import { ref, computed, onMounted, markRaw } from 'vue'
 import { Goods, Tickets, Histogram, Money } from '@element-plus/icons-vue'
 import { statsApi } from '../api'
+import { role } from '../stores/user'
 
 const overview = ref({ productCount: 0, orderCount: 0, totalQuantity: 0, totalAmount: 0 })
 const byCategory = ref([])
@@ -156,6 +161,8 @@ const topProducts = ref([])
 const tip = ref(null)
 const loading = ref(false)
 const loadError = ref('')
+const scopeTitle = computed(() => role() === 'farmer' ? '我的经营数据' : '全局经营数据')
+const scopeSub = computed(() => role() === 'farmer' ? '仅统计我的商品、相关订单和销售表现' : '统计平台全部商品、订单和销售表现')
 
 const palette = ['#2e7d32', '#43a047', '#66bb6a', '#fb8c00', '#42a5f5', '#8e24aa']
 
@@ -287,6 +294,15 @@ onMounted(async () => {
 
 <style scoped>
 .stats-page { position: relative; }
+.stats-head {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e6eee6;
+  border-radius: 12px;
+  background: #fbfdfb;
+}
+.stats-title { font-size: 18px; font-weight: 800; color: #1f2d3d; }
+.stats-sub { margin-top: 4px; font-size: 13px; color: #7a8a7a; }
 .overview-col { margin-bottom: 16px; }
 .stat-card { border-radius: 12px; transition: transform 0.18s ease, box-shadow 0.18s ease; }
 .stat-card:hover { transform: translateY(-3px); }

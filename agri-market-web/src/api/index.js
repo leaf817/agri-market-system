@@ -1,4 +1,5 @@
 import request from './request'
+import userStore from '../stores/user'
 
 export { authApi } from './auth'
 
@@ -18,7 +19,7 @@ export const categoryApi = {
 }
 
 export const originApi = {
-  list: () => request.get('/origins'),
+  list: (params) => request.get('/origins', { params }),
   save: (data) => request.post('/origins', data),
   remove: (id) => request.delete(`/origins/${id}`)
 }
@@ -31,7 +32,10 @@ export const orderApi = {
   remove: (id) => request.delete(`/orders/${id}`),
   changeStatus: (id, status) => request.patch(`/orders/${id}/status`, null, { params: { status } }),
   pay: (id) => request.post(`/orders/${id}/pay`),
-  cancel: (id) => request.post(`/orders/${id}/cancel`)
+  cancel: (id, reason) => request.post(`/orders/${id}/cancel`, { reason }),
+  ship: (id, data) => request.post(`/orders/${id}/ship`, data),
+  confirm: (id) => request.post(`/orders/${id}/confirm`),
+  close: (id, reason) => request.post(`/orders/${id}/close`, { reason })
 }
 
 export const statsApi = {
@@ -58,13 +62,50 @@ export const favoriteApi = {
 }
 
 export const aiApi = {
-  chat: (message) => request.post('/ai/chat', { message })
+  chat: (message, history = []) => request.post('/ai/chat', { message, history }),
+  chatStream: async (message, history = [], onChunk) => {
+    const response = await fetch('/api/ai/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(userStore.token ? { Authorization: 'Bearer ' + userStore.token } : {})
+      },
+      body: JSON.stringify({ message, history })
+    })
+    if (!response.ok || !response.body) {
+      throw new Error('AI stream request failed')
+    }
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let fullText = ''
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      const chunk = decoder.decode(value, { stream: true })
+      fullText += chunk
+      if (onChunk) onChunk(chunk, fullText)
+    }
+    const tail = decoder.decode()
+    if (tail) {
+      fullText += tail
+      if (onChunk) onChunk(tail, fullText)
+    }
+    return fullText
+  }
 }
 
 export const profileApi = {
   get: () => request.get('/profile'),
   update: (data) => request.put('/profile', data),
   changePassword: (data) => request.put('/profile/password', data)
+}
+
+export const userApi = {
+  list: () => request.get('/users'),
+  get: (id) => request.get(`/users/${id}`),
+  create: (data) => request.post('/users', data),
+  update: (id, data) => request.put(`/users/${id}`, data),
+  resetPassword: (id, newPassword) => request.put(`/users/${id}/password`, { newPassword })
 }
 
 export const reviewApi = {

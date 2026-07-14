@@ -2,11 +2,14 @@
   <div class="login-page">
     <el-card class="login-card" shadow="hover">
       <div class="brand">
-        <div class="brand-icon">🛒</div>
-        <div class="brand-title">消费者注册</div>
-        <div class="brand-sub">注册后即可浏览与下单</div>
+        <div class="brand-icon">{{ form.role === 'farmer' ? '🌾' : '🛒' }}</div>
+        <div class="brand-title">{{ form.role === 'farmer' ? '农户注册' : '消费者注册' }}</div>
+        <div class="brand-sub">{{ form.role === 'farmer' ? '注册后可维护产地并上架自己的农产品' : '注册后即可浏览与下单' }}</div>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+        <el-form-item label="注册身份" prop="role">
+          <el-segmented v-model="form.role" :options="roleOptions" class="role-switch" />
+        </el-form-item>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="form.username" placeholder="3-50 个字符" :prefix-icon="User" />
         </el-form-item>
@@ -21,6 +24,9 @@
         </el-form-item>
         <el-button type="primary" :loading="loading" class="submit" @click="submit">注 册</el-button>
       </el-form>
+      <div v-if="form.role === 'farmer'" class="register-tip">
+        农户账号注册后，请先进入“我的产地”创建产地，再到“我的产品”上架商品。
+      </div>
       <div class="foot">
         <span>已有账号？</span>
         <el-link type="primary" @click="$router.push('/login')">去登录</el-link>
@@ -40,8 +46,13 @@ import { setSession } from '../stores/user'
 const router = useRouter()
 const formRef = ref()
 const loading = ref(false)
-const form = reactive({ username: '', nickname: '', password: '', confirm: '' })
+const form = reactive({ username: '', nickname: '', password: '', confirm: '', role: 'consumer' })
+const roleOptions = [
+  { label: '消费者', value: 'consumer' },
+  { label: '农户', value: 'farmer' }
+]
 const rules = {
+  role: [{ required: true, message: '请选择注册身份', trigger: 'change' }],
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { min: 3, max: 50, message: '用户名长度 3-50', trigger: 'blur' }
@@ -66,11 +77,12 @@ const submit = async () => {
     const data = await authApi.register({
       username: form.username,
       password: form.password,
-      nickname: form.nickname
+      nickname: form.nickname,
+      role: form.role
     })
     setSession(data.token, data.user)
     ElMessage.success('注册成功，已自动登录')
-    router.push('/products')
+    router.push(form.role === 'farmer' ? '/my-origins' : '/products')
   } finally {
     loading.value = false
   }
@@ -96,5 +108,15 @@ const submit = async () => {
 .brand-title { font-size: 18px; font-weight: 800; color: #1f2d3d; }
 .brand-sub { font-size: 12px; color: #8a97a0; margin-top: 4px; }
 .submit { width: 100%; height: 42px; margin-top: 4px; }
+.role-switch { width: 100%; }
+.register-tip {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f4faf4;
+  color: #4f6f4f;
+  font-size: 12px;
+  line-height: 1.6;
+}
 .foot { display: flex; justify-content: center; gap: 6px; margin-top: 14px; font-size: 13px; color: #8a97a0; }
 </style>
