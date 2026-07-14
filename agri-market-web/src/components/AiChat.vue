@@ -15,7 +15,7 @@
 
       <div ref="bodyRef" class="ai-body">
         <div v-for="(msg, index) in messages" :key="index" :class="['ai-msg', msg.role]">
-          {{ msg.content }}
+          {{ msg.content || '正在思考...' }}
         </div>
       </div>
 
@@ -53,19 +53,39 @@ const scrollBottom = async () => {
   }
 }
 
+const buildHistory = () => {
+  return messages.value
+    .filter((msg) => msg.content)
+    .slice(-10)
+    .map((msg) => ({
+      role: msg.role,
+      content: msg.content
+    }))
+}
+
 const send = async () => {
   const content = text.value.trim()
   if (!content || loading.value) return
+
+  const history = buildHistory()
   messages.value.push({ role: 'user', content })
+  messages.value.push({ role: 'assistant', content: '' })
+  const assistantIndex = messages.value.length - 1
   text.value = ''
   loading.value = true
   await scrollBottom()
+
   try {
-    const res = await aiApi.chat(content)
-    messages.value.push({ role: 'assistant', content: res.reply || '我暂时没有理解您的问题，请换个说法试试。' })
+    const reply = await aiApi.chatStream(content, history, (_chunk, fullText) => {
+      messages.value[assistantIndex].content = fullText
+      scrollBottom()
+    })
+    if (!reply) {
+      messages.value[assistantIndex].content = '我暂时没有理解您的问题，请换个说法试试。'
+    }
   } catch (e) {
     ElMessage.error('AI 客服暂时不可用')
-    messages.value.push({ role: 'assistant', content: '客服暂时不可用，您可以稍后再试。' })
+    messages.value[assistantIndex].content = '客服暂时不可用，您可以稍后再试。'
   } finally {
     loading.value = false
     scrollBottom()
