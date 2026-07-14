@@ -99,6 +99,18 @@
               </div>
               <div class="nums">库存 {{ p.stock }}</div>
             </div>
+            <div class="card-qty" @click.stop>
+              <span class="qty-label">购买数量</span>
+              <el-input-number
+                :model-value="getCardQty(p)"
+                :min="1"
+                :max="Math.max(1, Number(p.stock) || 1)"
+                size="small"
+                controls-position="right"
+                :disabled="p.stock <= 0"
+                @update:model-value="(v) => setCardQty(p.id, v)"
+              />
+            </div>
             <div class="actions">
               <el-button
                 circle
@@ -111,13 +123,15 @@
               <el-button type="primary" :disabled="p.stock <= 0" @click="openBuy(p)">
                 {{ p.stock > 0 ? '立即购买' : '暂无库存' }}
               </el-button>
-              <el-button :icon="ChatDotRound" @click="openReviews(p)">评价</el-button>
             </div>
-            <div class="review-info" @click="openReviews(p)">
-              <span class="rating">
-                <el-icon v-for="i in 5" :key="i" :color="i <= Math.round(getRating(p.id)) ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
-              </span>
-              <span class="review-count">{{ getReviewCount(p.id) }} 条评价</span>
+            <div class="review-info">
+              <div class="review-left" @click="openReviews(p)">
+                <span class="rating">
+                  <el-icon v-for="i in 5" :key="i" :color="i <= Math.round(getRating(p.id)) ? '#ffb300' : '#e0e0e0'"><Star /></el-icon>
+                </span>
+                <span class="review-count">{{ getReviewCount(p.id) }} 条评价</span>
+              </div>
+              <span class="sales-count">已售 {{ p.sales ?? 0 }}</span>
             </div>
           </el-card>
         </el-col>
@@ -247,7 +261,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled, ChatDotRound } from '@element-plus/icons-vue'
+import { Plus, Search, Refresh, Edit, Delete, Upload, Location, ShoppingCart, Star, StarFilled } from '@element-plus/icons-vue'
 import { productApi, categoryApi, originApi, orderApi, cartApi, favoriteApi, reviewApi } from '../api'
 import userStore, { role, hasRole } from '../stores/user'
 import { useBuyerAddress } from '../composables/useBuyerAddress'
@@ -272,6 +286,19 @@ const products = ref([])
 const categories = ref([])
 const origins = ref([])
 const favoriteIds = ref(new Set())
+const cardQty = reactive({})
+
+const getCardQty = (p) => {
+  const id = p?.id
+  if (id == null) return 1
+  const max = Math.max(1, Number(p.stock) || 1)
+  const cur = Number(cardQty[id]) || 1
+  return Math.min(Math.max(1, cur), max)
+}
+const setCardQty = (id, v) => {
+  const n = Math.max(1, Number(v) || 1)
+  cardQty[id] = n
+}
 const reviewStats = ref({})
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -367,8 +394,10 @@ const toggleFav = async (p) => {
   favoriteIds.value = next
 }
 const addToCart = async (p) => {
-  await cartApi.add({ productId: p.id, quantity: 1 })
-  ElMessage.success('已加入购物车')
+  const quantity = getCardQty(p)
+  if (quantity > p.stock) return ElMessage.warning('购买数量不能超过库存')
+  await cartApi.add({ productId: p.id, quantity })
+  ElMessage.success(`已加入购物车 ×${quantity}`)
 }
 const resetFilter = () => {
   Object.assign(filters, { categoryId: null, status: null, keyword: '' })
@@ -432,7 +461,7 @@ const goProfileAddress = () => {
 
 const openBuy = async (p) => {
   buy.product = p
-  buy.quantity = 1
+  buy.quantity = getCardQty(p)
   buy.remark = ''
   buy.name = ''
   buy.phone = ''
@@ -490,6 +519,16 @@ onMounted(() => { loadOptions(); loadProducts(); loadFavorites() })
 .price small { color: #8a97a0; font-weight: 400; }
 .nums { margin-top: 6px; font-size: 12px; color: #aab4c0; }
 
+.card-qty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+.qty-label { font-size: 12px; color: #5a6a5a; flex: none; }
+.card-qty :deep(.el-input-number) { width: 120px; }
+
 .actions { display: flex; gap: 6px; padding: 10px 14px 14px; border-top: 1px solid #f3f5f3; align-items: center; }
 .actions .el-button:not(.is-circle) { flex: 1; }
 
@@ -505,14 +544,22 @@ onMounted(() => { loadOptions(); loadProducts(); loadFavorites() })
 .review-info {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 0 14px 10px;
   font-size: 12px;
   color: #8a97a0;
+}
+.review-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   cursor: pointer;
+  min-width: 0;
 }
 .review-info .rating { display: flex; }
 .review-count { color: #8a97a0; }
+.sales-count { flex: none; color: #2e7d32; font-weight: 600; }
 
 .review-header {
   display: flex;
