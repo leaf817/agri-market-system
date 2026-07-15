@@ -43,7 +43,10 @@ const loading = ref(false)
 const text = ref('')
 const bodyRef = ref()
 const messages = ref([
-  { role: 'assistant', content: '您好，我是 AI 客服。您可以问我商品、购物车、收藏、下单和订单相关问题。' }
+  {
+    role: 'assistant',
+    content: '您好，我是 AI 客服。您可以问我商品、购物车、收藏、下单和订单相关问题。'
+  }
 ])
 
 const scrollBottom = async () => {
@@ -76,13 +79,9 @@ const send = async () => {
   await scrollBottom()
 
   try {
-    const reply = await aiApi.chatStream(content, history, (_chunk, fullText) => {
-      messages.value[assistantIndex].content = fullText
-      scrollBottom()
-    })
-    if (!reply) {
-      messages.value[assistantIndex].content = '我暂时没有理解您的问题，请换个说法试试。'
-    }
+    const data = await aiApi.chat(content, history)
+    const reply = typeof data === 'string' ? data : data?.reply
+    messages.value[assistantIndex].content = reply || '我暂时没有理解您的问题，请换个说法试试。'
   } catch (e) {
     ElMessage.error('AI 客服暂时不可用')
     messages.value[assistantIndex].content = '客服暂时不可用，您可以稍后再试。'

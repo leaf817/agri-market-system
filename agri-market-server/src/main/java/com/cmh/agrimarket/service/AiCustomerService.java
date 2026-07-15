@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -43,6 +44,12 @@ public class AiCustomerService {
     @Value("${app.ai.base-url:https://api.deepseek.com/chat/completions}")
     private String baseUrl;
 
+    @Value("${app.ai.connect-timeout-ms:3000}")
+    private int connectTimeoutMs;
+
+    @Value("${app.ai.read-timeout-ms:8000}")
+    private int readTimeoutMs;
+
     public String chat(String message) {
         return chat(message, List.of());
     }
@@ -57,7 +64,10 @@ public class AiCustomerService {
                     "messages", buildMessages(message, history),
                     "stream", false
             );
-            Map<?, ?> response = restClientBuilder.build().post()
+            Map<?, ?> response = restClientBuilder
+                    .requestFactory(aiRequestFactory())
+                    .build()
+                    .post()
                     .uri(baseUrl)
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Authorization", "Bearer " + apiKey)
@@ -70,6 +80,13 @@ public class AiCustomerService {
             log.warn("AI customer service request failed, fallback reply will be used: {}", e.getMessage());
             return fallbackReply(message);
         }
+    }
+
+    private SimpleClientHttpRequestFactory aiRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(connectTimeoutMs);
+        factory.setReadTimeout(readTimeoutMs);
+        return factory;
     }
 
     private List<Map<String, String>> buildMessages(String message, List<AiChatRequest.ChatMessage> history) {
